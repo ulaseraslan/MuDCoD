@@ -1,0 +1,8 @@
+K: 2
+n: 100
+p_in:
+- 0.2
+- 0.25
+p_out: 0.1
+r: 0.0
+verbose: true
