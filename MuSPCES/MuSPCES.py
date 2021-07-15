@@ -64,12 +64,12 @@ def muspces(
         print(f"beta: {beta[0]}")
         print(f"K_max: {K_max}")
         print(f"n_iter: {n_iter}")
-        print(f"\n")
+        print("\n")
 
     Z = np.zeros((Ns, T, N))
     k = (np.zeros((Ns, T)) + K_max).astype(int)
     obj = np.zeros((n_iter))
-    obj2 = np.zeros((n_iter))
+    ## obj2 = np.zeros((n_iter))
     V = np.zeros((Ns, N, K_max, T))
     D = copy.deepcopy(A)
 

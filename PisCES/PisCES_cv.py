@@ -3,7 +3,7 @@ import copy
 import numpy as np
 
 sys.path.append("../")
-from utils.CESmethods import choose_k, eigen_complete, wLoss
+from utils.CESmethods import eigen_complete, wLoss
 from PisCES.PisCES import pisces
 
 
@@ -48,7 +48,7 @@ def pisces_cv(
     T = S[2]
     N = S[1]
 
-    if K_max == None:
+    if K_max is None:
         K_max = N // 10
 
     idxN = np.arange(N)
@@ -75,11 +75,11 @@ def pisces_cv(
             A_train[:, :, t, k] = At
             A_train2[:, :, t, k] = eigen_complete(At, cvidxtemp, 10, 10)
 
-    l = len(alphalist)
-    modu = np.zeros(l)
-    logllh = np.zeros(l)
+    la = len(alphalist)
+    modu = np.zeros(la)
+    logllh = np.zeros(la)
 
-    for a in range(l):
+    for a in range(la):
         alpha = np.ones((T, 2)) * alphalist[a]
         Z = np.zeros((N, T, K_fold), dtype=int)
 

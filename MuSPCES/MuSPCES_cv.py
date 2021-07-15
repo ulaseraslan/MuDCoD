@@ -3,7 +3,7 @@ import copy
 import numpy as np
 
 sys.path.append("../")
-from utils.CESmethods import choose_k, eigen_complete, wLoss
+from utils.CESmethods import eigen_complete, wLoss
 from MuSPCES.MuSPCES import muspces
 
 
@@ -52,7 +52,7 @@ def muspces_cv(
     N = S[1]  # or S[2]
     Ns = S[0]
 
-    if K_max == None:
+    if K_max is None:
         K_max = N // 10
 
     idxN = np.arange(N)

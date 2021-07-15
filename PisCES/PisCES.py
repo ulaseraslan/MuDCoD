@@ -49,12 +49,12 @@ def pisces(A, degree_correction=True, alpha=None, K_max=None, n_iter=50, verbose
         print(f"alpha: {alpha[0,0]}")
         print(f"K_max: {K_max}")
         print(f"n_iter: {n_iter}")
-        print(f"\n")
+        print("\n")
 
     Z = np.zeros((T, N))
     k = (np.zeros(T) + K_max).astype(int)
     obj = np.zeros((n_iter))
-    obj2 = np.zeros((n_iter))
+    ## obj2 = np.zeros((n_iter))
     V = np.zeros((N, K_max, T))
     D = copy.deepcopy(A)
 

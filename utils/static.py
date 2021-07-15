@@ -1,9 +1,8 @@
 import sys
 import copy
-import warnings
 import numpy as np
 
-from numpy.linalg import inv, eigvals
+from numpy.linalg import inv
 from scipy.sparse.linalg import eigs
 from scipy.linalg import sqrtm
 from sklearn.cluster import KMeans
@@ -15,7 +14,7 @@ from utils.CESmethods import choose_k
 EPS = 10 ** (-10)
 
 
-def static_clustering(A, degree_correction=True, K_max=None, verbose=False):
+def static_spectral_clustering(A, degree_correction=True, K_max=None, verbose=False):
     """
     Parameters
     ----------
@@ -41,7 +40,7 @@ def static_clustering(A, degree_correction=True, K_max=None, verbose=False):
     if verbose:
         print("Static.")
         print(f"K_max: {K_max}")
-        print(f"\n")
+        print("\n")
 
     Z = np.zeros((T, N))
     k = (np.zeros(T) + K_max).astype(int)
@@ -88,7 +87,7 @@ if __name__ == "__main__":
         At = np.greater_equal(pz, r).astype(float)
         A[:, :, t] = np.triu(At, 1) + np.triu(At, 1).T
 
-    Z = static(A, degree_correction=True, verbose=True)
+    Z = static_spectral_clustering(A, degree_correction=True, verbose=True)
 
     from collections import Counter
 

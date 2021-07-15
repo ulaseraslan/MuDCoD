@@ -36,9 +36,9 @@ def wLoss(adjTest, adjTrain, zhat, opt, cvidx):
     n = len(zhat)
 
     loss = 0
-    minvalue = 0
+    ## minvalue = 0
 
-    maxval = np.max(adjTrain)
+    ## maxval = np.max(adjTrain)
     binA = copy.deepcopy(adjTrain)
 
     kts = np.sum(binA, axis=0)
