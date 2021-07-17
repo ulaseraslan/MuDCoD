@@ -12,7 +12,7 @@ def pisces_cv(
     alphalist=[0.05, 1],
     degree_correction=True,
     K_max=None,
-    n_iter=50,
+    n_iter=30,
     K_fold=5,
     verbose=False,
 ):

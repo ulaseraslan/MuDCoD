@@ -15,7 +15,7 @@ from utils.CESmethods import choose_k
 EPS = 10 ** (-10)
 
 
-def pisces(A, degree_correction=True, alpha=None, K_max=None, n_iter=50, verbose=False):
+def pisces(A, degree_correction=True, alpha=None, K_max=None, n_iter=30, verbose=False):
     """
     Parameters
     ----------
@@ -115,7 +115,6 @@ def pisces(A, degree_correction=True, alpha=None, K_max=None, n_iter=50, verbose
     if obj[iter] - obj[iter - 1] >= 0.001:
         warnings.warn("PisCES does not converged!", RuntimeWarning)
         print(f"PisCES does not converge for alpha={alpha[1, 1]}.")
-        print("Please try a smaller alpha.")
 
     Z = np.empty((N, T), dtype=int)
     for t in range(T):

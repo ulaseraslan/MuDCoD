@@ -29,6 +29,7 @@ case $key in
     r_time="$2"
     shift
     shift
+    ;;
     *)    # unknown option
     POSITIONAL+=("$1") # save it in an array for later
     shift # past argument
@@ -45,5 +46,5 @@ echo "Time horizon: ${time_horizon}"
 num_simulation=100
 
 for ((i = 0 ; i < num_simulation ; i++)); do
-    python -W ignore "${curr_dir}multisubject_dynamic_dcbm.py" --case "${case_name}" --identity "${i}" --num-subject "${num_subject}" --time-horizon "${time_horizon}" --r-subject "${r_subject}" --r-time "${r_value}"  
+    python -W ignore "${curr_dir}multisubject_dynamic_dcbm.py" --case "${case_name}" --identity "${i}" --num-subject "${num_subject}" --time-horizon "${time_horizon}" --r-subject "${r_subject}" --r-time "${r_time}"
 done

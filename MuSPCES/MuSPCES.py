@@ -21,7 +21,7 @@ def muspces(
     alpha=None,
     beta=None,
     K_max=None,
-    n_iter=50,
+    n_iter=30,
     verbose=False,
 ):
     """
@@ -150,7 +150,6 @@ def muspces(
     if obj[iter] - obj[iter - 1] >= 0.001:
         warnings.warn("MuSPCES does not converged!", RuntimeWarning)
         print(f"MuSPCES does not converge for alpha={alpha[1, 1]}, beta={beta[0]}.")
-        print("Please try a smaller alpha/beta.")
 
     Z = np.empty((Ns, N, T), dtype=int)
     for t in range(T):

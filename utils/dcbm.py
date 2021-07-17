@@ -91,9 +91,10 @@ def simulate_dynamic_dcbm(T, K, n, r_time, p_in, p_out, batch=1, ind_batch=False
 
 
 def simulate_ms_dynamic_dcbm(
-    Ns, T, K, n, r_subject, r_time, p_in, p_out, ind_subject=False, opt=1
+    Ns, T, K, n, r_subject, r_time, p_in, p_out, ind_subject=False, opt=2
 ):
     rng = default_rng()
+    print(Ns, n, n, T)
     Adj_series = np.empty((Ns, n, n, T), dtype=int)
     z_series = np.empty((Ns, n, T), dtype=int)
 

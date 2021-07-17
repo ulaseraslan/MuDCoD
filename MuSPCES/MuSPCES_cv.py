@@ -13,7 +13,7 @@ def muspces_cv(
     betalist=[0.05, 1],
     degree_correction=True,
     K_max=None,
-    T_n=50,
+    n_iter=30,
     K_fold=5,
     verbose=False,
 ):
@@ -30,7 +30,7 @@ def muspces_cv(
             'True' for degree correction
     K_max
             maximum number of communities, degault as N/10
-    T_n
+    n_iter
             number of iteration of pisces, default is 10
     K_fold
             number of folds in cross validation
@@ -93,7 +93,7 @@ def muspces_cv(
 
             for k in range(K_fold):
                 Z[:, :, :, k] = muspces(
-                    A_train2[:, :, :, :, k], degree_correction, alpha, beta, K_max, T_n
+                    A_train2[:, :, :, :, k], degree_correction, alpha, beta, K_max, n_iter
                 )
 
                 if verbose:
