@@ -40,11 +40,11 @@ done
 curr_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)/"
 
 echo "Name: ${case_name}"
-echo "Number of subject:${num_subject}"
+echo "Number of subjects:${num_subject}"
 echo "Time horizon: ${time_horizon}"
 
 num_simulation=100
 
 for ((i = 0 ; i < num_simulation ; i++)); do
-    python -W ignore "${curr_dir}multisubject_dynamic_dcbm.py" --case "${case_name}" --identity "${i}" --num-subject "${num_subject}" --time-horizon "${time_horizon}" --r-subject "${r_subject}" --r-time "${r_time}"
+    ${curr_dir}python simulation.py --verbose=True --case-msd=0 --time-horizon=4 --class-dcbm=easy200 --r-time=0.1 --num-subjects=3 --r-subject=0.1 --n-jobs=4 community-detection --id-number=1
 done
