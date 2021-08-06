@@ -39,7 +39,7 @@ class Static(SpectralClustering):
         self.degree_correction = degree_correction
 
         if self.verbose:
-            log(f"static-fit::: #nodes:{self.n}")
+            log(f"Static-fit ~ #nodes:{self.n}")
 
         if self.degree_correction:
             dg = np.diag(np.sum(np.abs(adj), axis=0) + _eps)
@@ -69,7 +69,7 @@ class Static(SpectralClustering):
             log(f"k_max is not provided, default value is floor({n}/10).")
 
         if self.verbose:
-            log(f"static-predict::: k_max:{k_max}")
+            log(f"Static-predict ~ k_max:{k_max}")
 
         v_emb = np.zeros((n, k_max))
 

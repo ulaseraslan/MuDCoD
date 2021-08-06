@@ -1,7 +1,9 @@
 import numpy as np
 
-from copy import deepcopy
 from numpy.random import default_rng
+
+
+_eps = 10 ** (-5)
 
 
 class DCBM:
@@ -41,9 +43,8 @@ class DCBM:
         n = len(z_hat)
 
         loss = 0
-        adj_train_dc = deepcopy(adj_train)
 
-        kts = np.sum(adj_train_dc, axis=0)
+        kts = np.sum(adj_train, axis=0)
         w = np.sum(kts, axis=0)
 
         if opt == "modu":
@@ -65,7 +66,7 @@ class DCBM:
 
             for i in range(k + 1):
                 for j in range(k + 1):
-                    a_k = adj_train_dc[:, z_hat == j][z_hat == i, :]
+                    a_k = adj_train[:, z_hat == j][z_hat == i, :]
                     ## a_j = adj_train[z_hat == i, z_hat == j]
                     ## ajx = cvidx[z_hat == i, z_hat == j];
                     hat0[i, j] = np.sum(a_k)
@@ -81,9 +82,8 @@ class DCBM:
                             (5 / 4) * theta[k1] * theta[k2] * hat0[z_hat[k1], z_hat[k2]]
                         )
                         ## prob = theta[k1] * theta[k2] * hat0[z_hat[k1], z_hat[k2]]
-
                         if prob == 0 or np.isnan(prob):
-                            prob = 10 ** (-5)
+                            prob = _eps
                         if prob >= 1:
                             prob = 1 - 10 ** (-5)
 
@@ -112,7 +112,7 @@ class DCBM:
         assert z_old.shape[0] == self.n
         n = self.n
         k = self.k
-        e_r = rng.binomial(n, r)
+        e_r = rng.binomial(1, r, size=n)
         z_tn = np.nonzero(rng.multinomial(1, [1 / k] * k, size=n))[1]
         z_new = np.where(e_r == 1, z_tn, z_old)
         return z_new
@@ -146,6 +146,9 @@ class DCBM:
         B = np.full((k, k), p_out)
         B[np.diag_indices(k)] = rng.uniform(p_in[0], p_in[1], k)
 
+        ###
+        # This part is not general for DCBMs
+        # It only cover a specifiy type of ktsree distribution
         if p_in[1] < (1 / (1.5 ** 2)):
             gamma1 = 1
             gamma0 = 0.5
@@ -157,6 +160,7 @@ class DCBM:
             gamma0 = 0.1 - np.finfo(np.float32).eps
 
         theta = gamma1 * (np.random.permutation(n) / n) + gamma0
+        ###
 
         adj = self.get_adjacency(z, B, theta)
 

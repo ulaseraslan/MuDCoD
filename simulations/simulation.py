@@ -10,7 +10,7 @@ from sklearn.metrics.cluster import adjusted_rand_score
 
 
 logging.captureWarnings(True)
-MAIN_DIR = Path(__file__).parent.parent.absolute()
+MAIN_DIR = Path(__file__).absolute().parent.parent
 SIMULATION_DIR = MAIN_DIR / "simulations"
 RESULT_DIR = MAIN_DIR / "results"
 sys.path.append(str(MAIN_DIR))
@@ -35,7 +35,7 @@ parser.add_argument(
     "--case-msd",
     required=True,
     type=int,
-    help="DCBM class that will be used.",
+    help="MultiSubject Dynamic DCBM that will be used.",
 )
 parser.add_argument(
     "--time-horizon", "-t", required=True, type=int, help="Number of time steps."
@@ -59,37 +59,23 @@ parser.add_argument(
     "--n-jobs",
     required=False,
     type=int,
-    default=1,
+    default=-2,
     help="Number of concurrently running 'joblib' jobs.",
 )
-
-
-def add_cv_args_common(parser):
-    parser.add_argument(
-        "--size-coef",
-        required=True,
-        type=int,
-        default=1,
-        help="Size coefficient to determine number of vertices, n_cv=n_class*size-coef.",
-    )
-    return parser
-
 
 subparsers = parser.add_subparsers(dest="task")
 muspces_cv_parser = subparsers.add_parser("cv-muspces")
 muspces_cv_parser.add_argument("--alpha", required=True, type=float)
 muspces_cv_parser.add_argument("--beta", required=True, type=float)
-muspces_cv_parser = add_cv_args_common(muspces_cv_parser)
 pisces_cv_parser = subparsers.add_parser("cv-pisces")
 pisces_cv_parser.add_argument("--alpha", required=True, type=float)
-pisces_cv_parser = add_cv_args_common(pisces_cv_parser)
+
 community_detection_parser = subparsers.add_parser("community-detection")
 community_detection_parser.add_argument(
     "--id-number", required=True, type=int, help="Simulation identity number."
 )
 community_detection_parser.add_argument(
     "--obj-key",
-    required=False,
     type=str,
     default="loglikelihood",
     choices=["loglikelihood", "modularity"],
@@ -140,11 +126,6 @@ def make_cfg(
     simulation_result_dir = RESULT_DIR / "simulation_results"
     cv_result_dir = simulation_result_dir / simulation_name / "cross_validation"
 
-    # save also for class and case name for common hyperparameters
-    if not cv_result_dir.exists():
-        class_case_name = "_".join([class_dcbm, "case" + str(case_msd)])
-        cv_result_dir = simulation_result_dir / class_case_name / "cross_validation"
-
     if not cv_result_dir.exists():
         raise FileNotFoundError(
             "Corresponding cross-validation result directory can not be found."
@@ -169,7 +150,7 @@ def make_cfg(
                 cfg["pisces_alpha"] = cv_result["alpha"]
                 pisces_obj_max = obj
         else:
-            raise (
+            raise ValueError(
                 f"Unkown method {method} is encountered in the cross-validation "
                 f"result directory {cv_result_dir}."
             )
@@ -240,7 +221,7 @@ class SimulationMSDDCBM:
     def cv_muspces(self, alpha, beta, save=True):
         adj_ms_series = self.adj_ms_series
         ns = self.model.num_subjects
-        ns = self.model.time_horizon
+        th = self.model.time_horizon
 
         muspces = MuSPCES(verbose=self.verbose)
         muspces.fit(deepcopy(adj_ms_series), degree_correction=False)
@@ -249,6 +230,7 @@ class SimulationMSDDCBM:
             alpha=alpha * np.ones((th, 2)),
             beta=beta * np.ones(ns),
             n_jobs=self.n_jobs,
+            n_iter=30,
         )
         if save:
             name = "_".join(
@@ -256,14 +238,12 @@ class SimulationMSDDCBM:
                     "muspces",
                     "alpha" + str(alpha)[2:],
                     "beta" + str(beta)[2:],
-                    "sizecoef" + str(self.parser_args.size_coef),
                 ]
             )
-            header = ["alpha", "beta", "sizecoef", "modularity", "loglikelihood"]
+            header = ["alpha", "beta", "modularity", "loglikelihood"]
             values = [
                 alpha,
                 beta,
-                self.parser_args.size_coef,
                 modu_muspces,
                 logllh_muspces,
             ]
@@ -275,7 +255,7 @@ class SimulationMSDDCBM:
     def cv_pisces(self, alpha, save=True):
         adj_ms_series = self.adj_ms_series
         ns = self.model.num_subjects
-        ns = self.model.time_horizon
+        th = self.model.time_horizon
 
         pisces = PisCES(verbose=self.verbose)
 
@@ -284,8 +264,7 @@ class SimulationMSDDCBM:
         for sbj in range(ns):
             pisces.fit(adj_ms_series[sbj, :, :, :], degree_correction=False)
             modu_sbj_pisces, logllh_sbj_pisces = pisces.cross_validation(
-                alpha=alpha * np.ones((th, 2)),
-                n_jobs=self.n_jobs,
+                alpha=alpha * np.ones((th, 2)), n_jobs=self.n_jobs, n_iter=30
             )
             modu_pisces = modu_pisces + modu_sbj_pisces
             logllh_pisces = logllh_pisces + logllh_sbj_pisces
@@ -295,11 +274,10 @@ class SimulationMSDDCBM:
                 [
                     "pisces",
                     "alpha" + str(alpha)[2:],
-                    "sizecoef" + str(self.parser_args.size_coef),
                 ]
             )
-            header = ["alpha", "sizecoef", "modularity", "loglikelihood"]
-            values = [alpha, self.parser_args.size_coef, modu_pisces, logllh_pisces]
+            header = ["alpha", "modularity", "loglikelihood"]
+            values = [alpha, modu_pisces, logllh_pisces]
             self.save_cross_validation_result(name, header, values)
 
         return modu_pisces, logllh_pisces
@@ -341,23 +319,25 @@ class SimulationMSDDCBM:
             alpha=alpha_muspces,
             beta=beta_muspces,
             k_max=self.model.n // 10,
+            n_iter=40,
         )
 
         if self.n_jobs > 1:
             from joblib import Parallel, delayed
 
-            with Parallel(n_jobs=self.n_jobs) as parallel:  ## prefer="processes"
+            with Parallel(n_jobs=self.n_jobs) as parallel:
                 temp_pisces = parallel(
                     delayed(pisces.fit_predict)(
                         deepcopy(adj_ms_series[sbj, :, :, :]),
                         alpha=alpha_pisces,
                         k_max=self.model.n // 10,
+                        n_iter=40,
                     )
                     for sbj in range(ns)
                 )
                 z_pisces = np.array(temp_pisces)
 
-            with Parallel(n_jobs=self.n_jobs) as parallel:  ## prefer="processes"
+            with Parallel(n_jobs=self.n_jobs) as parallel:
                 temp_static = parallel(
                     delayed(static.fit_predict)(
                         deepcopy(adj_ms_series[sbj, t, :, :]), k_max=self.model.n // 10
@@ -365,7 +345,7 @@ class SimulationMSDDCBM:
                     for sbj in range(ns)
                     for t in range(th)
                 )
-                z_static = np.array(temp_pisces).reshape((ns, th, -1))
+                z_static = np.array(temp_static).reshape((ns, th, -1))
 
         else:
             for sbj in range(ns):
@@ -373,6 +353,7 @@ class SimulationMSDDCBM:
                     adj_ms_series[sbj, :, :, :],
                     alpha=alpha_pisces,
                     k_max=self.model.n // 10,
+                    n_iter=40,
                 )
 
             for sbj in range(ns):
@@ -383,11 +364,11 @@ class SimulationMSDDCBM:
 
         for t in range(th):
             for sbj in range(ns):
-                ari_pisces[sbj, t] = adjusted_rand_score(
-                    z_ms_series[sbj, t, :], z_pisces[sbj, t, :]
-                )
                 ari_muspces[sbj, t] = adjusted_rand_score(
                     z_ms_series[sbj, t, :], z_muspces[sbj, t, :]
+                )
+                ari_pisces[sbj, t] = adjusted_rand_score(
+                    z_ms_series[sbj, t, :], z_pisces[sbj, t, :]
                 )
                 ari_static[sbj, t] = adjusted_rand_score(
                     z_ms_series[sbj, t, :], z_static[sbj, t, :]
@@ -411,7 +392,7 @@ class SimulationMSDDCBM:
         return ari_muspces, ari_pisces, ari_static
 
     def save_community_detection_result(self, name, id_number, result):
-        savedir = self.simulation_result_path / "community_detection"
+        savedir = self.simulation_result_path / "communities"
         path = savedir / "_".join([name, str(id_number) + ".csv"])
         sutils.ensure_file_dir(path)
         np.savetxt(path, result, delimiter=",", fmt="%s")
@@ -421,21 +402,10 @@ class SimulationMSDDCBM:
         path = savedir / (name + ".csv")
         sutils.write_to_csv(path, header, values)
 
-        # save also for class and case name for common hyperparameters
-        class_case_name = "_".join([self.class_dcbm, "case" + str(self.case_msd)])
-        savedir = (
-            self.result_dir
-            / "simulation_results"
-            / class_case_name
-            / "cross_validation"
-        )
-        path = savedir / (name + ".csv")
-        sutils.write_to_csv(path, header, values)
-
 
 if __name__ == "__main__":
-    class_dcbm = args.class_dcbm
     task = args.task
+    class_dcbm = args.class_dcbm
     time_horizon = args.time_horizon
     r_time = args.r_time
     num_subjects = args.num_subjects
@@ -446,7 +416,7 @@ if __name__ == "__main__":
 
     sutils.log(
         f"DCBM-class-name:{class_dcbm}, task:{task}, "
-        f"timeir-horizon:{time_horizon}, r-time:{r_time}, "
+        f"time-horizon:{time_horizon}, r-time:{r_time}, "
         f"num-subjects:{num_subjects}, r-subject:{r_subject}, "
         f"case-MSD:{case_msd}, n-jobs:{n_jobs}, verbose:{verbose}"
     )
@@ -457,10 +427,6 @@ if __name__ == "__main__":
     msddcbm_kwargs["r_time"] = r_time
     msddcbm_kwargs["num_subjects"] = num_subjects
     msddcbm_kwargs["r_subject"] = r_subject
-
-    if task != "community-detection":
-        size_coef = args.size_coef
-        msddcbm_kwargs["n"] = msddcbm_kwargs["n"] * size_coef
 
     simul = SimulationMSDDCBM(
         msddcbm_kwargs,
@@ -474,13 +440,13 @@ if __name__ == "__main__":
 
     if task == "cv-pisces":
         alpha = args.alpha
-        sutils.log(f"alpha:{alpha}, size-coeffcient:{size_coef}")
+        sutils.log(f"alpha:{alpha}")
         simul.cv_pisces(alpha, save=True)
 
     elif task == "cv-muspces":
         alpha = args.alpha
         beta = args.alpha
-        sutils.log(f"alpha:{alpha}, beta:{beta}, size-coeffcient:{size_coef}")
+        sutils.log(f"alpha:{alpha}, beta:{beta}")
         simul.cv_muspces(alpha, beta, save=True)
 
     elif task == "community-detection":

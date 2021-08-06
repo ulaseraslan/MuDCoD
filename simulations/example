@@ -1,4 +1,0 @@
-python simulation.py --case-msd=0 --time-horizon=4 --class-dcbm=easy200 --r-time=0.5 --num-subjects=10 --r-subject=0.5 community-detection --id-number=1 
-python simulation.py --verbose=True --case-msd=0 --time-horizon=4 --class-dcbm=easy200 --r-time=0.5 --num-subjects=3 --r-subject=0.5 --n-jobs=2 cv-pisces --alpha=0.1 --size-coef=1
-python simulation.py --verbose=True --case-msd=0 --time-horizon=4 --class-dcbm=easy200 --r-time=0.1 --num-subjects=3 --r-subject=0.1 --n-jobs=4 community-detection --id-number=1
-python simulation.py --verbose=True --case-msd=0 --time-horizon=4 --class-dcbm=easy200 --r-time=0.1 --num-subjects=3 --r-subject=0.1 --n-jobs=4 community-detection --id-number=1

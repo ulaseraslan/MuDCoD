@@ -15,6 +15,7 @@ from dypoces.utils.sutils import timeit, log
 warnings.filterwarnings(action="ignore", category=np.ComplexWarning)
 
 _eps = 10 ** (-10)
+CONVERGENCE_CRITERIA = 10 ** (-3)
 
 
 class PisCES(SpectralClustering):
@@ -41,7 +42,7 @@ class PisCES(SpectralClustering):
         self.degree = deepcopy(adj)
 
         if self.verbose:
-            log(f"PisCES-fit::: #nodes:{self.n}, " f"#time:{self.time_horizon}")
+            log(f"PisCES-fit ~ #nodes:{self.n}, " f"#time:{self.time_horizon}")
 
         if self.degree_correction:
             for t in range(self.time_horizon):
@@ -93,7 +94,7 @@ class PisCES(SpectralClustering):
 
         if self.verbose:
             log(
-                f"PisCES-predict::: alpha:{alpha[0,0]}, "
+                f"PisCES-predict ~ alpha:{alpha[0,0]}, "
                 f"k_max {k_max}, n_iter:{n_iter}"
             )
 
@@ -145,10 +146,10 @@ class PisCES(SpectralClustering):
             if self.verbose:
                 log(f"Value of objective funciton: {obj[itr]}, at iteration {itr+1}.")
 
-            if itr > 1 and abs(obj[itr] - obj[itr - 1]) < 0.001:
+            if itr > 1 and abs(obj[itr] - obj[itr - 1]) < CONVERGENCE_CRITERIA:
                 break
 
-        if obj[itr] - obj[itr - 1] >= 0.001:
+        if obj[itr] - obj[itr - 1] >= CONVERGENCE_CRITERIA:
             warnings.warn("PisCES does not converge!", RuntimeWarning)
             if self.verbose:
                 log(f"PisCES does not not converge for alpha={alpha[0, 0]}.")
@@ -202,6 +203,9 @@ class PisCES(SpectralClustering):
         n = self.n
         adj = self.adj
 
+        if self.degree_correction:
+            raise ValueError("Adjacency matrix must be unlaplacianized")
+
         if alpha is None:
             log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
             alpha = 0.05 * np.ones((th, 2))
@@ -220,7 +224,7 @@ class PisCES(SpectralClustering):
 
         idx_n = np.arange(n)
         idx = np.c_[np.repeat(idx_n, idx_n.shape), np.tile(idx_n, idx_n.shape)]
-        r = np.random.choice(n ** 2, size=n ** 2)
+        r = np.random.choice(n ** 2, size=n ** 2, replace=False)
 
         pisces_kwargs = {
             "alpha": alpha,
@@ -231,23 +235,22 @@ class PisCES(SpectralClustering):
         def compute_for_split(adj, idx_test, n, th, pisces_kwargs={}):
             cvidx = np.empty((th, n, n))
             adj_train = np.zeros((th, n, n))
-            adj_train_cv = np.zeros((th, n, n))
+            adj_train_imputed = np.zeros((th, n, n))
 
             for t in range(th):
                 cvidx_t = np.zeros((n, n))
-                cvidx_t[idx_test[:, 0], idx_test[:, 1]] = 1
+                cvidx_t[idx_test[t, :, 0], idx_test[t, :, 1]] = 1
                 cvidx_t = np.triu(cvidx_t) + np.triu(cvidx_t).T
                 cvidx[t, :, :] = cvidx_t
 
                 adj_t = deepcopy(adj[t, :, :])
                 adj_t[idx_test[:, 0], idx_test[:, 1]] = 0
                 adj_t = np.triu(adj_t) + np.triu(adj_t).T
-                adj_train[t, :, :] = adj_t
-                adj_train_cv[t, :, :] = self.eigen_complete(adj_t, cvidx_t, 10, 10)
+                adj_train_imputed[t, :, :] = self.eigen_complete(adj_t, cvidx_t, 10, 10)
 
-            z = self.__class__(verbose=self.verbose).fit_predict(
-                adj_train_cv[:, :, :],
-                degree_correction=self.degree_correction,
+            z = self.__class__(verbose=False).fit_predict(
+                adj_train_imputed[:, :, :],
+                degree_correction=True,
                 **pisces_kwargs,
             )
 
@@ -255,14 +258,14 @@ class PisCES(SpectralClustering):
             for t in range(th):
                 modu_val = modu_val + DCBM.loss(
                     adj[t, :, :],
-                    adj_train[t, :, :],
+                    adj_train_imputed[t, :, :],
                     z[t, :],
                     cvidx[t, :, :],
                     opt="modu",
                 )
                 logllh_val = logllh_val + DCBM.loss(
                     adj[t, :, :],
-                    adj_train[t, :, :],
+                    adj_train_imputed[t, :, :],
                     z[t, :],
                     cvidx[t, :, :],
                     opt="logllh",
@@ -276,7 +279,7 @@ class PisCES(SpectralClustering):
             psplit = n ** 2 // n_splits
             test = r[split * psplit : (split + 1) * psplit]
             idx_test = idx[test, :]
-            return idx_test
+            return np.tile(idx_test, (th, 1, 1))
 
         if n_jobs > 1:
             from joblib import Parallel, delayed

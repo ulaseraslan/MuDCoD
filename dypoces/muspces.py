@@ -19,6 +19,7 @@ from dypoces.utils.sutils import timeit, log
 warnings.filterwarnings(action="ignore", category=np.ComplexWarning)
 
 _eps = 10 ** (-10)
+CONVERGENCE_CRITERIA = 10 ** (-3)
 
 
 class MuSPCES(SpectralClustering):
@@ -49,7 +50,7 @@ class MuSPCES(SpectralClustering):
 
         if self.verbose:
             log(
-                f"MuSPCES-fit::: #nodes:{self.n}, "
+                f"MuSPCES-fit ~ #nodes:{self.n}, "
                 f"#time:{self.time_horizon}, "
                 f"#num-sbj:{self.num_subjects}"
             )
@@ -114,7 +115,7 @@ class MuSPCES(SpectralClustering):
 
         if self.verbose:
             log(
-                f"MuSPCES-predict::: "
+                f"MuSPCES-predict ~ "
                 f"alpha:{alpha[0,0]}, beta:{beta[0]}, "
                 f"k_max:{k_max}, n_iter:{n_iter}"
             )
@@ -202,10 +203,10 @@ class MuSPCES(SpectralClustering):
             if self.verbose:
                 log(f"Value of objective funciton: {obj[itr]}, at iteration {itr+1}.")
 
-            if itr > 1 and abs(obj[itr] - obj[itr - 1]) < 0.001:
+            if itr > 1 and abs(obj[itr] - obj[itr - 1]) < CONVERGENCE_CRITERIA:
                 break
 
-        if obj[itr] - obj[itr - 1] >= 0.001:
+        if obj[itr] - obj[itr - 1] >= CONVERGENCE_CRITERIA:
             warnings.warn("MuSPCES does not converge!", RuntimeWarning)
             if self.verbose:
                 log(
@@ -267,6 +268,9 @@ class MuSPCES(SpectralClustering):
         n = self.n
         adj = self.adj
 
+        if self.degree_correction:
+            raise ValueError("Adjacency matrix must be unlaplacianized")
+
         if alpha is None:
             alpha = 0.05 * np.ones((th, 2))
             log(f"alpha is not provided, default value is 0.05J({th},2).")
@@ -289,7 +293,7 @@ class MuSPCES(SpectralClustering):
 
         idx_n = np.arange(n)
         idx = np.c_[np.repeat(idx_n, idx_n.shape), np.tile(idx_n, idx_n.shape)]
-        r = np.random.choice(n ** 2, size=n ** 2)
+        r = np.random.choice(n ** 2, size=n ** 2, replace=False)
 
         muspces_kwargs = {
             "alpha": alpha,
@@ -300,8 +304,7 @@ class MuSPCES(SpectralClustering):
 
         def compute_for_split(adj, idx_test, n, th, ns, muspces_kwargs={}):
             cvidx = np.empty((ns, th, n, n))
-            adj_train = np.zeros((ns, th, n, n))
-            adj_train_cv = np.zeros((ns, th, n, n))
+            adj_train_imputed = np.zeros((ns, th, n, n))
 
             for t in range(th):
                 for sbj in range(ns):
@@ -309,17 +312,17 @@ class MuSPCES(SpectralClustering):
                     cvidx_t[idx_test[:, 0], idx_test[:, 1]] = 1
                     cvidx_t = np.triu(cvidx_t) + np.triu(cvidx_t).T
                     cvidx[sbj, t, :, :] = cvidx_t
+
                     adj_t = deepcopy(adj[sbj, t, :, :])
                     adj_t[idx_test[:, 0], idx_test[:, 1]] = 0
                     adj_t = np.triu(adj_t) + np.triu(adj_t).T
-                    adj_train[sbj, t, :, :] = adj_t
-                    adj_train_cv[sbj, t, :, :] = self.eigen_complete(
+                    adj_train_imputed[sbj, t, :, :] = self.eigen_complete(
                         adj_t, cvidx_t, 10, 10
                     )
 
-            z = self.__class__(verbose=self.verbose).fit_predict(
-                deepcopy(adj_train_cv[:, :, :, :]),
-                degree_correction=self.degree_correction,
+            z = self.__class__(verbose=False).fit_predict(
+                deepcopy(adj_train_imputed[:, :, :, :]),
+                degree_correction=True,
                 **muspces_kwargs,
             )
 
@@ -328,14 +331,14 @@ class MuSPCES(SpectralClustering):
                 for sbj in range(ns):
                     modu_val = modu_val + DCBM.loss(
                         adj[sbj, t, :, :],
-                        adj_train[sbj, t, :, :],
+                        adj_train_imputed[sbj, t, :, :],
                         z[sbj, t, :],
                         cvidx[sbj, t, :, :],
                         opt="modu",
                     )
                     logllh_val = logllh_val + DCBM.loss(
                         adj[sbj, t, :, :],
-                        adj_train[sbj, t, :, :],
+                        adj_train_imputed[sbj, t, :, :],
                         z[sbj, t, :],
                         cvidx[sbj, t, :, :],
                         opt="logllh",
@@ -348,7 +351,8 @@ class MuSPCES(SpectralClustering):
         def split_idx_test(split):
             psplit = n ** 2 // n_splits
             test = r[split * psplit : (split + 1) * psplit]
-            return idx[test, :]
+            idx_test = idx[test, :]
+            return np.tile(idx_test, (ns, th, 1, 1))
 
         if n_jobs > 1:
             from joblib import Parallel, delayed

@@ -1,46 +1,48 @@
 #!/bin/bash
 
 curr_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)/"
-mkdir -p "${curr_dir}log/simulation"
-mkdir -p "${curr_dir}../results/simulation_outputs"
+mkdir -p "${curr_dir}log/"
+mkdir -p "${curr_dir}../results"
 
-case_name=( medium200_K5 hard200_K5 )
-time_horizon=( 2 4 6 )
-num_subject=(2 4 6)
-r_time=(0.4 0.6 0.8)
-r_subject=(0.2 0.4 0.6)
+classes_dcbm=(easy100 medium100 hard100 easy500 medium500 dense500)
+time_horizon=(2 4 8)
+num_subject=(1 5 10 15)
+r_time=(0.0 0.3 0.6)
+r_subject=(0.0 0.3 0.6)
+cases_msd=(1 3)
 
 qos="short"
-n_jobs="short"
 
-for case in ${case_name[@]}; do
+for class_dcbm in ${classes_dcbm[@]}; do
   for th in ${time_horizon[@]}; do
-    for num_sbj in ${num_subject[@]}; do
+    for ns in ${num_subject[@]}; do
       for rt in ${r_time[@]}; do
         for rs in ${r_subject[@]}; do
-          rs_decimal=$(echo "${rs}"| cut -d'.' -f 2)
-          rt_decimal=$(echo "${rt}"| cut -d'.' -f 2)
-          name="${case}_rt${rt_decimal}_rs${rs_decimal}_T${th}_Ns${num_sbj}"
-          echo "#!/bin/bash
+          for case_msd in ${cases_msd[@]}; do
+            rs_dec=$(echo "${rs}"| cut -d'.' -f 2)
+            rt_dec=$(echo "${rt}"| cut -d'.' -f 2)
+            name="${class_dcbm}_case${case_msd}_th${th}_rt${rt_dec}_ns${ns}_rs${rs_dec}"
+            echo "#!/bin/bash
 # -= Resources =-
 #
 #SBATCH --job-name=${name}
 #SBATCH --account=mdbf
-#SBATCH --ntasks-per-node=4
+#SBATCH --ntasks-per-node=2
 #SBATCH --qos=${qos}_mdbf
 #SBATCH --partition=${qos}_mdbf
 #SBATCH --time=1:59:00
-#SBATCH --output=${curr_dir}log/simulation/${name}.out
-#SBATCH --mem=8G
+#SBATCH --output=${curr_dir}log/${name}.out
+#SBATCH --mem=12G
 
 # Set stack size to unlimited
 
 ulimit -s unlimited
 ulimit -l unlimited
 ulimit -a
-${curr_dir}simulation.sh -c ${case} -s ${num_sbj} -t ${th} --r-subject ${rs} --r-time ${rt}
-"         > ${curr_dir}"tmp_slurm_submission.sh"
-          sbatch ${curr_dir}"tmp_slurm_submission.sh"
+${curr_dir}run_simulation.sh --class-dcbm ${class_dcbm} --case-msd ${case_msd} --time-horizon ${th} --r-time ${rt} --num-subjects ${ns} --r-subject ${rs}
+"           > ${curr_dir}"tmp_slurm_submission.sh"
+            sbatch ${curr_dir}"tmp_slurm_submission.sh"
+          done
         done
       done
     done

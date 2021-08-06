@@ -22,18 +22,10 @@ shift $((OPTIND-1))
 
 [ "${1:-}" = "--" ] && shift
 
-## path_list=( "/results/" )
-## for sub_path in "${path_list[@]}"
-## do
-##     echo ${sub_path}
-##     SYNC=tosun_away:MuSPCES${sub_path}
-##     rsync -avirz $SYNC ${SCRIPTPATH}${sub_path}  ${wrt} ${del}
-## done
-
-path_list=( "/simulations/" "/MuSPCES/" "/PisCES/" "/utils/" )
+path_list=( "/dypoces/" "/simulations/")
 for sub_path in "${path_list[@]}"
 do
     echo ${sub_path}
-    SYNC=tosun_away:MuSPCES${sub_path}
-    rsync -avirz --prune-empty-dirs --include "*/"  --include="*.py" --include="*.sh" --include="*.yaml" --exclude="*" $SYNC ${SCRIPTPATH}${sub_path}  ${wrt} ${del}
+    SYNC=tosun_away:dypoces${sub_path}
+    rsync -arviz --exclude="**/log/*" $SYNC ${SCRIPTPATH}${sub_path}  ${wrt} ${del}
 done

@@ -10,7 +10,7 @@ _eps = 10 ** (-10)
 
 
 class SpectralClustering:
-    def __init__(self, method, verbose=True):
+    def __init__(self, method, verbose=False):
         self.verbose = verbose
         self.method = method.lower()
         assert type(method) == str and method.lower() in ["pisces", "muspces", "static"]
