@@ -7,9 +7,14 @@ from numpy.linalg import inv, eigvals
 from scipy.sparse.linalg import eigs
 from scipy.linalg import sqrtm
 
-from dypoces.spectral import SpectralClustering
-from dypoces.dcbm import DCBM
+if __name__ == "__main__":
+    import sys
+
+    sys.path.append("../")
+
+from dypoces.nw import Loss, Similarity
 from dypoces.utils.sutils import timeit, log
+from dypoces.spectral import SpectralClustering
 
 
 warnings.filterwarnings(action="ignore", category=np.ComplexWarning)
@@ -167,6 +172,7 @@ class PisCES(SpectralClustering):
         self.fit(adj, degree_correction=degree_correction)
         return self.predict(alpha=alpha, k_max=k_max, n_iter=n_iter)
 
+    @timeit
     def cross_validation(
         self,
         n_splits=5,
@@ -204,7 +210,7 @@ class PisCES(SpectralClustering):
         adj = self.adj
 
         if self.degree_correction:
-            raise ValueError("Adjacency matrix must be unlaplacianized")
+            raise ValueError("Adjacency matrix must be unlaplacianized.")
 
         if alpha is None:
             log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
@@ -234,7 +240,6 @@ class PisCES(SpectralClustering):
 
         def compute_for_split(adj, idx_test, n, th, pisces_kwargs={}):
             cvidx = np.empty((th, n, n))
-            adj_train = np.zeros((th, n, n))
             adj_train_imputed = np.zeros((th, n, n))
 
             for t in range(th):
@@ -256,20 +261,19 @@ class PisCES(SpectralClustering):
 
             modu_val, logllh_val = 0, 0
             for t in range(th):
-                modu_val = modu_val + DCBM.loss(
+                modu_val = modu_val + Loss.modularity(
                     adj[t, :, :],
                     adj_train_imputed[t, :, :],
                     z[t, :],
                     cvidx[t, :, :],
-                    opt="modu",
                 )
-                logllh_val = logllh_val + DCBM.loss(
+                logllh_val = logllh_val + Loss.loglikelihood(
                     adj[t, :, :],
                     adj_train_imputed[t, :, :],
                     z[t, :],
                     cvidx[t, :, :],
-                    opt="logllh",
                 )
+
             return modu_val, logllh_val
 
         modu = 0
@@ -304,7 +308,7 @@ class PisCES(SpectralClustering):
 
         if self.verbose:
             log(
-                f"Cross validation, alpha={alpha[0,0]}::: "
+                f"Cross validation, alpha={alpha[0,0]} ~ "
                 f"modularity:{modu}, loglikelihood:{logllh}"
             )
 
@@ -312,25 +316,27 @@ class PisCES(SpectralClustering):
 
 
 if __name__ == "__main__":
-    # One easy example for PisCES.
-    from dypoces.dcbm import MuSDynamicDCBM
+    # One easy cv example for PisCES.
+    from dypoces.dcbm import DynamicDCBM
 
-    model_dcbm = MuSDynamicDCBM(
-        n=200,
-        k=5,
-        p_in=(0.3, 0.35),
+    n = 200
+    th = 6
+    model_dcbm = DynamicDCBM(
+        n=n,
+        k=4,
+        p_in=(0.2, 0.3),
         p_out=0.1,
-        time_horizon=5,
-        r_time=0.2,
-        num_subjects=1,
-        r_subject=0.5,
+        time_horizon=th,
+        r_time=0,
     )
-    adj_ms_series, z_ms_series = model_dcbm.simulate_ms_dynamic_dcbm(case=0)
-    pisces = PisCES(verbose=True)
-    from sklearn.metrics.cluster import adjusted_rand_score
+    adj_series, z_series = model_dcbm.simulate_dynamic_dcbm()
 
-    for i in range(z_ms_series.shape[0]):
-        pisces.fit(adj_ms_series[i, :, :], degree_correction=False)
-        z_predicted = pisces.predict(alpha=0.1 * np.ones((z_ms_series.shape[1], 2)))
-        for j in range(z_ms_series.shape[1]):
-            print(adjusted_rand_score(z_predicted[j], z_ms_series[i, j, :]))
+    pisces = PisCES(verbose=True)
+    pisces.fit(adj_series[:, :, :], degree_correction=False)
+    modu, logllh = pisces.cross_validation(
+        n_splits=4,
+        alpha=0.1 * np.ones((adj_series.shape[0], 2)),
+        k_max=10,
+        n_iter=100,
+        n_jobs=1,
+    )

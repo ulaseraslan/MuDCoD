@@ -7,13 +7,14 @@ from scipy.sparse.linalg import eigs
 from scipy.linalg import sqrtm
 from copy import deepcopy
 
-import sys
+if __name__ == "__main__":
+    import sys
 
-sys.path.append("../")
+    sys.path.append("../")
 
-from dypoces.spectral import SpectralClustering
-from dypoces.dcbm import DCBM
+from dypoces.nw import Loss
 from dypoces.utils.sutils import timeit, log
+from dypoces.spectral import SpectralClustering
 
 
 warnings.filterwarnings(action="ignore", category=np.ComplexWarning)
@@ -269,7 +270,7 @@ class MuSPCES(SpectralClustering):
         adj = self.adj
 
         if self.degree_correction:
-            raise ValueError("Adjacency matrix must be unlaplacianized")
+            raise ValueError("Adjacency matrix must be unlaplacianized.")
 
         if alpha is None:
             alpha = 0.05 * np.ones((th, 2))
@@ -309,12 +310,12 @@ class MuSPCES(SpectralClustering):
             for t in range(th):
                 for sbj in range(ns):
                     cvidx_t = np.zeros((n, n))
-                    cvidx_t[idx_test[:, 0], idx_test[:, 1]] = 1
+                    cvidx_t[idx_test[sbj, t, :, 0], idx_test[sbj, t, :, 1]] = 1
                     cvidx_t = np.triu(cvidx_t) + np.triu(cvidx_t).T
                     cvidx[sbj, t, :, :] = cvidx_t
 
                     adj_t = deepcopy(adj[sbj, t, :, :])
-                    adj_t[idx_test[:, 0], idx_test[:, 1]] = 0
+                    adj_t[idx_test[sbj, t, :, 0], idx_test[sbj, t, :, 1]] = 0
                     adj_t = np.triu(adj_t) + np.triu(adj_t).T
                     adj_train_imputed[sbj, t, :, :] = self.eigen_complete(
                         adj_t, cvidx_t, 10, 10
@@ -329,19 +330,17 @@ class MuSPCES(SpectralClustering):
             modu_val, logllh_val = 0, 0
             for t in range(th):
                 for sbj in range(ns):
-                    modu_val = modu_val + DCBM.loss(
+                    modu_val = modu_val + Loss.modularity(
                         adj[sbj, t, :, :],
                         adj_train_imputed[sbj, t, :, :],
                         z[sbj, t, :],
                         cvidx[sbj, t, :, :],
-                        opt="modu",
                     )
-                    logllh_val = logllh_val + DCBM.loss(
+                    logllh_val = logllh_val + Loss.loglikelihood(
                         adj[sbj, t, :, :],
                         adj_train_imputed[sbj, t, :, :],
                         z[sbj, t, :],
                         cvidx[sbj, t, :, :],
-                        opt="logllh",
                     )
             return modu_val, logllh_val
 
@@ -382,7 +381,7 @@ class MuSPCES(SpectralClustering):
 
         if self.verbose:
             log(
-                f"Cross validation(alpha={alpha[0,0]},beta={beta[0]})::: "
+                f"Cross validation(alpha={alpha[0,0]},beta={beta[0]}) ~ "
                 f"modularity:{modu}, loglikelihood:{logllh}"
             )
 
@@ -390,28 +389,30 @@ class MuSPCES(SpectralClustering):
 
 
 if __name__ == "__main__":
-    # One easy example for MuSPCES.
+    # One easy cv example for MuSPCES.
     from dypoces.dcbm import MuSDynamicDCBM
 
     model_dcbm = MuSDynamicDCBM(
-        n=200,
-        k=5,
-        p_in=(0.3, 0.35),
+        n=100,
+        k=10,
+        p_in=(0.2, 0.2),
         p_out=0.1,
-        time_horizon=5,
+        time_horizon=10,
         r_time=0.2,
         num_subjects=5,
-        r_subject=0.1,
+        r_subject=0.2,
     )
     adj_ms_series, z_ms_series = model_dcbm.simulate_ms_dynamic_dcbm(case=0)
-    pisces = MuSPCES(verbose=True)
-    from sklearn.metrics.cluster import adjusted_rand_score
 
-    pisces.fit(adj_ms_series[:, :, :], degree_correction=True)
-    z_predicted = pisces.predict(
-        alpha=0.1 * np.ones((z_ms_series.shape[1], 2)),
-        beta=0.01 * np.ones(z_ms_series.shape[0]),
+    muspces = MuSPCES(verbose=True)
+
+    muspces.fit(adj_ms_series[:, :, :], degree_correction=False)
+
+    modu, logllh = muspces.cross_validation(
+        n_splits=5,
+        alpha=0.1 * np.ones((adj_ms_series.shape[1], 2)),
+        beta=0.05 * np.ones(adj_ms_series.shape[0]),
+        k_max=10,
+        n_iter=30,
+        n_jobs=1,
     )
-    for i in range(z_ms_series.shape[0]):
-        for j in range(z_ms_series.shape[1]):
-            print(adjusted_rand_score(z_predicted[i, j, :], z_ms_series[i, j, :]))

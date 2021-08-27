@@ -4,7 +4,7 @@ curr_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)/"
 mkdir -p "${curr_dir}log/"
 mkdir -p "${curr_dir}../results"
 
-classes_dcbm=(easy100 medium100 hard100 easy500 medium500 dense500)
+classes_dcbm=(easy100 medium100)
 time_horizon=(2 4 8)
 num_subject=(1 5 10 15)
 r_time=(0.0 0.3 0.6)
@@ -39,7 +39,10 @@ for class_dcbm in ${classes_dcbm[@]}; do
 ulimit -s unlimited
 ulimit -l unlimited
 ulimit -a
-${curr_dir}run_simulation.sh --class-dcbm ${class_dcbm} --case-msd ${case_msd} --time-horizon ${th} --r-time ${rt} --num-subjects ${ns} --r-subject ${rs}
+${curr_dir}run_simulation.sh \
+  --class-dcbm ${class_dcbm} --case-msd ${case_msd} \
+  --time-horizon ${th} --r-time ${rt} \
+  --num-subjects ${ns} --r-subject ${rs}
 "           > ${curr_dir}"tmp_slurm_submission.sh"
             sbatch ${curr_dir}"tmp_slurm_submission.sh"
           done

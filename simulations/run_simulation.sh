@@ -60,15 +60,32 @@ echo "r-subject: ${r_subject}"
 alpha_values=(0.01 0.03 0.06 0.1 0.15 0.2)
 beta_values=(0.02 0.05 0.1 0.15)
 
-num_simulation=100
+num_cd=100
+num_cv=10
 
-for alpha in ${alpha_values[@]}; do
-  python ${curr_dir}simulation.py  --class-dcbm=${class_dcbm} --case-msd=${case_msd} --time-horizon=${time_horizon} --r-time=${r_time} --num-subjects=${num_subjects} --r-subject=${r_subject} cv-pisces --alpha=${alpha}
-  for beta in ${beta_values[@]}; do
-    python ${curr_dir}simulation.py --class-dcbm=${class_dcbm} --case-msd=${case_msd} --time-horizon=${time_horizon} --r-time=${r_time} --num-subjects=${num_subjects} --r-subject=${r_subject} cv-muspces --alpha=${alpha} --beta=${beta}
+for ((i = 0 ; i < num_cv ; i++)); do
+  for alpha in ${alpha_values[@]}; do
+
+    python ${curr_dir}simulation.py \
+      --class-dcbm=${class_dcbm} --case-msd=${case_msd} \
+      --time-horizon=${time_horizon} --r-time=${r_time} \
+      --num-subjects=${num_subjects} --r-subject=${r_subject} \
+      cv-pisces --alpha=${alpha}
+
+    for beta in ${beta_values[@]}; do
+      python ${curr_dir}simulation.py \
+        --class-dcbm=${class_dcbm} --case-msd=${case_msd} \
+        --time-horizon=${time_horizon} --r-time=${r_time} \
+        --num-subjects=${num_subjects} --r-subject=${r_subject} \
+        cv-muspces --alpha=${alpha} --beta=${beta}
+    done
   done
 done
 
-for ((i = 0 ; i < num_simulation ; i++)); do
-    python ${curr_dir}simulation.py --class-dcbm=${class_dcbm} --case-msd=${case_msd} --time-horizon=${time_horizon} --r-time=${r_time} --num-subjects=${num_subjects} --r-subject=${r_subject} community-detection --id-number=${i}
+for ((i = 0 ; i < num_cd ; i++)); do
+    python ${curr_dir}simulation.py \
+      --class-dcbm=${class_dcbm} --case-msd=${case_msd} \
+      --time-horizon=${time_horizon} --r-time=${r_time} \
+      --num-subjects=${num_subjects} --r-subject=${r_subject} \
+      community-detection --id-number=${i}
 done

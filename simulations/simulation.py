@@ -136,18 +136,21 @@ def make_cfg(
         cv_name = cv_result_path.stem
         method = cv_name.split("_")[0].lower()
         cv_result = {
-            key: float(item[0])
-            for key, item in sutils.read_csv_to_dict(cv_result_path).items()
+            key: map(float, values)
+            for key, values in sutils.read_csv_to_dict(cv_result_path).items()
         }
-        obj = cv_result[obj_key]
+        assert len(set(cv_result["alpha"])) <= 1
+        assert len(set(cv_result["beta"])) <= 1
+
+        obj = mean(cv_result[obj_key])
         if method == "muspces":
             if muspces_obj_max < obj:
-                cfg["muspces_alpha"] = cv_result["alpha"]
-                cfg["muspces_beta"] = cv_result["beta"]
+                cfg["muspces_alpha"] = cv_result["alpha"][0]
+                cfg["muspces_beta"] = cv_result["beta"][0]
                 muspces_obj_max = obj
         elif method == "pisces":
             if pisces_obj_max < obj:
-                cfg["pisces_alpha"] = cv_result["alpha"]
+                cfg["pisces_alpha"] = cv_result["alpha"][0]
                 pisces_obj_max = obj
         else:
             raise ValueError(
@@ -445,7 +448,7 @@ if __name__ == "__main__":
 
     elif task == "cv-muspces":
         alpha = args.alpha
-        beta = args.alpha
+        beta = args.beta
         sutils.log(f"alpha:{alpha}, beta:{beta}")
         simul.cv_muspces(alpha, beta, save=True)
 
