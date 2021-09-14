@@ -96,14 +96,15 @@ def read_cv_results(results_path, multi_index=False):
             result_dict["val"].append(tempDf[objkey].mean())
 
         pisces_cv_path = cv_path.glob("pisces*.csv")
-        for i, ppath in enumerate(sorted(pisces_cv_path)):
+        for ppath in sorted(pisces_cv_path):
             tempDf = pd.read_csv(ppath)
             alpha = float(tempDf["alpha"].iloc[0])
             beta = np.nan
-            result_dict["row"].append(
-                (i, class_dcbm, case_msd, th, rt, ns, rs, alpha, beta, "pisces")
-            )
-            result_dict["val"].append(tempDf[objkey].mean())
+            for i, val in enumerate(tempDf[objkey]):
+                result_dict["row"].append(
+                    (i, class_dcbm, case_msd, th, rt, ns, rs, alpha, beta, "pisces")
+                )
+                result_dict["val"].append(val)
 
     index_row = pd.MultiIndex.from_tuples(
         result_dict["row"],
