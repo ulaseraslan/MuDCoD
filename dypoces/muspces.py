@@ -233,6 +233,9 @@ class MuSPCES(SpectralClustering):
                     f"MuSPCES does not converge for alpha={alpha[0, 0]}, beta={beta[0]}."
                 )
 
+        self.representations = v_col
+        self.model_order_k = k
+
         z = np.empty((ns, th, n), dtype=int)
         for t in range(th):
             for sbj in range(ns):

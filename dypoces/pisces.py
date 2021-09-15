@@ -182,6 +182,9 @@ class PisCES(SpectralClustering):
             if self.verbose:
                 log(f"PisCES does not not converge for alpha={alpha[0, 0]}.")
 
+        self.representations = v_col
+        self.model_order_k = k
+
         z_series = np.empty((th, n), dtype=int)
         for t in range(th):
             kmeans = KMeans(n_clusters=k[t])

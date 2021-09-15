@@ -77,6 +77,9 @@ class Static(SpectralClustering):
         k = self.choose_k(adj, adj, degree, k_max)
         _, v_col[:, :k] = eigs(adj, k=k, which="LM")
 
+        self.representations = v_col
+        self.model_order_k = k
+
         kmeans = KMeans(n_clusters=k)
         z = kmeans.fit_predict(v_col[:, :k])
 
