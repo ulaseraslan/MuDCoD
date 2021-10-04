@@ -162,6 +162,7 @@ class PisCES(SpectralClustering):
                             normalize=False,
                         )
                     )
+            self.convergence_monitor.append((objective[itr], diffU))
 
             if self.verbose:
                 log(
@@ -170,9 +171,6 @@ class PisCES(SpectralClustering):
 
             if itr >= 1:
                 diff_obj = objective[itr] - objective[itr - 1]
-
-                if monitor_convergence:
-                    self.convergence_monitor.append((diff_obj, diffU))
 
                 if abs(diff_obj) < CONVERGENCE_CRITERIA:
                     break
@@ -193,10 +191,21 @@ class PisCES(SpectralClustering):
         return z_series
 
     def fit_predict(
-        self, adj, degree_correction=True, alpha=None, k_max=None, n_iter=30
+        self,
+        adj,
+        degree_correction=True,
+        alpha=None,
+        k_max=None,
+        n_iter=30,
+        monitor_convergence=False,
     ):
         self.fit(adj, degree_correction=degree_correction)
-        return self.predict(alpha=alpha, k_max=k_max, n_iter=n_iter)
+        return self.predict(
+            alpha=alpha,
+            k_max=k_max,
+            n_iter=n_iter,
+            monitor_convergence=monitor_convergence,
+        )
 
     @timeit
     def cross_validation(

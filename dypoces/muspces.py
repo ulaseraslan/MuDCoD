@@ -20,7 +20,8 @@ from dypoces.spectral import SpectralClustering
 warnings.filterwarnings(action="ignore", category=np.ComplexWarning)
 
 _eps = 10 ** (-10)
-CONVERGENCE_CRITERIA = 10 ** (-3)
+## CONVERGENCE_CRITERIA = 10 ** (-3)
+CONVERGENCE_CRITERIA = 0
 
 
 class MuSPCES(SpectralClustering):
@@ -122,6 +123,7 @@ class MuSPCES(SpectralClustering):
         assert k_max > 0
 
         self.convergence_monitor = []
+        diffU = 0
 
         if self.verbose:
             log(
@@ -141,9 +143,19 @@ class MuSPCES(SpectralClustering):
                 k[sbj, t] = self.choose_k(adj_t, adj_t, degree[sbj, t, :, :], k_max)
                 _, v_col[sbj, t, :, : k[sbj, t]] = eigs(adj_t, k=k[sbj, t], which="LM")
 
+                if monitor_convergence:
+                    diffU = diffU + (
+                        Similarity.hamming_distance(
+                            adj[sbj, t, :, :],
+                            v_col[sbj, t, :, : k[sbj, t]]
+                            @ v_col[sbj, t, :, : k[sbj, t]].T,
+                        )
+                    )
+        self.convergence_monitor.append((-np.inf, diffU))
+
         for itr in range(n_iter):
-            diffU = 0
             v_col_pv = deepcopy(v_col)
+            diffU = 0
             for t in range(th):
                 v_col_t = v_col_pv[:, t, :, :]
                 swp_v_col_t = np.swapaxes(v_col_t, 1, 2)
@@ -208,9 +220,9 @@ class MuSPCES(SpectralClustering):
                                 @ v_col[sbj, t, :, : k[sbj, t]].T,
                                 v_col_pv[sbj, t, :, : k[sbj, t]]
                                 @ v_col_pv[sbj, t, :, : k[sbj, t]].T,
-                                normalize=False,
                             )
                         )
+            self.convergence_monitor.append((objective[itr], diffU))
 
             if self.verbose:
                 log(
@@ -219,9 +231,6 @@ class MuSPCES(SpectralClustering):
 
             if itr >= 1:
                 diff_obj = objective[itr] - objective[itr - 1]
-
-                if monitor_convergence:
-                    self.convergence_monitor.append((diff_obj, diffU))
 
                 if abs(diff_obj) < CONVERGENCE_CRITERIA:
                     break
@@ -244,10 +253,23 @@ class MuSPCES(SpectralClustering):
         return z
 
     def fit_predict(
-        self, adj, degree_correction=True, alpha=None, beta=None, k_max=None, n_iter=30
+        self,
+        adj,
+        degree_correction=True,
+        alpha=None,
+        beta=None,
+        k_max=None,
+        n_iter=30,
+        monitor_convergence=False,
     ):
         self.fit(adj, degree_correction=degree_correction)
-        return self.predict(alpha=alpha, beta=beta, k_max=k_max, n_iter=n_iter)
+        return self.predict(
+            alpha=alpha,
+            beta=beta,
+            k_max=k_max,
+            n_iter=n_iter,
+            monitor_convergence=monitor_convergence,
+        )
 
     @timeit
     def cross_validation(

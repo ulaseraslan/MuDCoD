@@ -136,19 +136,20 @@ def make_cfg(
         cv_name = cv_result_path.stem
         method = cv_name.split("_")[0].lower()
         cv_result = {
-            key: map(float, values)
+            key: list(map(float, values))
             for key, values in sutils.read_csv_to_dict(cv_result_path).items()
         }
-        assert len(set(cv_result["alpha"])) <= 1
-        assert len(set(cv_result["beta"])) <= 1
 
         obj = np.mean(cv_result[obj_key])
         if method == "muspces":
+            assert len(set(cv_result["alpha"])) <= 1
+            assert len(set(cv_result["beta"])) <= 1
             if muspces_obj_max < obj:
                 cfg["muspces_alpha"] = cv_result["alpha"][0]
                 cfg["muspces_beta"] = cv_result["beta"][0]
                 muspces_obj_max = obj
         elif method == "pisces":
+            assert len(set(cv_result["alpha"])) <= 1
             if pisces_obj_max < obj:
                 cfg["pisces_alpha"] = cv_result["alpha"][0]
                 pisces_obj_max = obj
@@ -395,7 +396,7 @@ class SimulationMSDDCBM:
         return ari_muspces, ari_pisces, ari_static
 
     def save_community_detection_result(self, name, id_number, result):
-        savedir = self.simulation_result_path / "communities"
+        savedir = self.simulation_result_path / "community_detection"
         path = savedir / "_".join([name, str(id_number) + ".csv"])
         sutils.ensure_file_dir(path)
         np.savetxt(path, result, delimiter=",", fmt="%s")

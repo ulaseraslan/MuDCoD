@@ -41,6 +41,15 @@ def get_adjacency_details(data_path):
     adj_details = sutils.load_yaml(ADJ_DETAILS_PATH)
     return adj_details
 
+def get_result_path(cell_type, percentile):
+    RESULT_PATH = (
+        RESULT_DIR
+        / f"{cell_type}/"
+        / f"p{str(percentile)}"
+        / f""
+    )
+    sutils.safe_create_dir(RESULT_PATH)
+    return RESULT_PATH
 
 def get_data_path(cell_type, percentile):
     DATA_PATH = (

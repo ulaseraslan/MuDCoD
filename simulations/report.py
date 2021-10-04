@@ -141,8 +141,8 @@ def read_comm_results(results_path, multi_index=False):
         percent = round(100 * i / num_result, 2)
         print(f"Procesing:%{percent}", class_dcbm, case_msd, th, rt, ns, rs, end="\r")
 
-        communities_path = path / "communities"
-        muspces_comm_path = communities_path.glob("muspces*.csv")
+        community_detection_path = path / "community_detection"
+        muspces_comm_path = community_detection_path.glob("muspces*.csv")
         for i, mpath in enumerate(sorted(muspces_comm_path)):
             temp = np.genfromtxt(mpath, delimiter=",")
             result_dict["row"].append(
@@ -150,7 +150,7 @@ def read_comm_results(results_path, multi_index=False):
             )
             result_dict["val"].append(np.mean(temp))
 
-        pisces_comm_path = communities_path.glob("pisces*.csv")
+        pisces_comm_path = community_detection_path.glob("pisces*.csv")
         for i, ppath in enumerate(sorted(pisces_comm_path)):
             temp = np.genfromtxt(ppath, delimiter=",")
             result_dict["row"].append(
@@ -158,7 +158,7 @@ def read_comm_results(results_path, multi_index=False):
             )
             result_dict["val"].append(np.mean(temp))
 
-        static_comm_path = communities_path.glob("static*.csv")
+        static_comm_path = community_detection_path.glob("static*.csv")
         for i, spath in enumerate(sorted(static_comm_path)):
             temp = np.genfromtxt(spath, delimiter=",")
             result_dict["row"].append(
@@ -214,7 +214,9 @@ def plot_community_detection_results(results_path, figure_path):
                 title = f"dcbm-class: {class_dcbm} "
                 title += f"case-msd: {case_msd} "
                 title += f"num-subjects: {str(ns)}"
-                g = VIS.point_catplot(data, x, y, hue, col, row, title)
+                g = VIS.point_catplot(
+                    data=data, x=x, y=y, hue=hue, col=col, row=row, title=title
+                )
                 g.fig.savefig(
                     output_path / f"{class_dcbm}_{case_msd}_ns{ns}.png",
                     bbox_inches="tight",

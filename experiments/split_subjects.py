@@ -18,7 +18,7 @@ parser.add_argument(
     help="Cell type that will be used.",
 )
 parser.add_argument(
-    "-percentile",
+    "--percentile",
     required=False,
     type=int,
     default=95,
@@ -62,8 +62,8 @@ if num_splits * num_repeats == 1:
 
 muspces, pisces, static = expt_utils.get_community_detection_methods(verbose)
 
-alpha_pisces = 0.1 * np.ones((th, 2))
-alpha_muspces = 0.1 * np.ones((th, 2))
+alpha_pisces = 0.025 * np.ones((th, 2))
+alpha_muspces = 0.025 * np.ones((th, 2))
 
 if num_splits > 1:
     rkf = RepeatedKFold(n_splits=num_splits, n_repeats=num_repeats)
@@ -71,19 +71,22 @@ if num_splits > 1:
 else:
     splits = [([idx for idx in range(num_sbj)], ()) for _ in range(num_repeats)]
 
+fold_splits = []
+
 for idx, split in enumerate(splits):
-    expt_utils.log(f"Processing fold-{idx+1}...")
-    for sbj in range(num_sbj):
-        for t in range(th):
-            z_static_folded[idx, sbj, t, :] = static.fit_predict(
-                msdyn_nw[sbj, t, :, :], k_max=n // 10
-            )
-        z_pisces_folded[idx, sbj, :, :] = pisces.fit_predict(
-            msdyn_nw[sbj, :, :, :], alpha=alpha_pisces, k_max=n // 10
-        )
+    fold_splits.append(split)
+    ## expt_utils.log(f"Processing fold-{idx+1}...")
+    ## for sbj in range(num_sbj):
+    ##     for t in range(th):
+    ##         z_static_folded[idx, sbj, t, :] = static.fit_predict(
+    ##             msdyn_nw[sbj, t, :, :], k_max=n // 10
+    ##         )
+    ##     z_pisces_folded[idx, sbj, :, :] = pisces.fit_predict(
+    ##         msdyn_nw[sbj, :, :, :], alpha=alpha_pisces, k_max=n // 10
+    ##     )
     for split_idx in split:
         if len(split_idx) > 0:
-            beta_muspces = 0.05 * np.ones(len(split_idx))
+            beta_muspces = 0.025 * np.ones(len(split_idx))
             z_muspces_folded[idx, split_idx, :, :] = muspces.fit_predict(
                 msdyn_nw[split_idx, :, :, :],
                 alpha=alpha_muspces,
@@ -100,22 +103,28 @@ ari_muspces = []
 for idx1, idx2 in list(combinations([i for i in range(len(z_static_folded))], 2)):
     for sbj in range(num_sbj):
         for t in range(th):
-            ari_static.append(
-                adjusted_rand_score(
-                    z_static_folded[idx1, sbj, t, :], z_static_folded[idx2, sbj, t, :]
-                )
-            )
-            ari_pisces.append(
-                adjusted_rand_score(
-                    z_pisces_folded[idx1, sbj, t, :], z_pisces_folded[idx2, sbj, t, :]
-                )
-            )
+            ## ari_static.append(
+            ##     adjusted_rand_score(
+            ##         z_static_folded[idx1, sbj, t, :], z_static_folded[idx2, sbj, t, :]
+            ##     )
+            ## )
+            ## ari_pisces.append(
+            ##     adjusted_rand_score(
+            ##         z_pisces_folded[idx1, sbj, t, :], z_pisces_folded[idx2, sbj, t, :]
+            ##     )
+            ## )
             ari_muspces.append(
                 adjusted_rand_score(
                     z_muspces_folded[idx1, sbj, t, :], z_muspces_folded[idx2, sbj, t, :]
                 )
             )
 
-expt_utils.log(f"mean(ARI)(static):{np.mean(ari_static)}")
-expt_utils.log(f"mean(ARI)(pisces):{np.mean(ari_pisces)}")
+expt_utils.log(fold_splits)
+## expt_utils.log(f"mean(ARI)(static):{np.mean(ari_static)}")
+## expt_utils.log(f"mean(ARI)(pisces):{np.mean(ari_pisces)}")
 expt_utils.log(f"mean(ARI)(muspces):{np.mean(ari_muspces)}")
+
+outfile_z = expt_utils.get_result_path(cell_type, percentile) / "folded_pred_communities.npy"
+np.save(outfile_z, z_muspces_folded)
+outfile_split = expt_utils.get_result_path(cell_type, percentile) / "fold_splits.npy"
+np.save(outfile_split, np.array(fold_splits))

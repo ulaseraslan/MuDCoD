@@ -54,7 +54,7 @@ class Similarity:
         return minv
 
     @staticmethod
-    def hamming_distance(adj1, adj2, normalize=True):
+    def hamming_distance(adj1, adj2, normalize=False):
         _assert_before_distance(adj1, adj2)
         n = adj1.shape[0]
         dist = np.sum(np.abs(adj1 - adj2))
@@ -279,7 +279,7 @@ class Loss:
                         adj_test[i, j] - (kts[i] / hval[i] * kts[j] / hval[j] / w * ne)
                     )
 
-        return modularity / w
+        return modularity
 
     @staticmethod
     def loglikelihood(adj_test, adj_train, z_hat, cvidx):

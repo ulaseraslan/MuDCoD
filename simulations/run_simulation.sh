@@ -57,15 +57,21 @@ echo "r-time: ${r_time}"
 echo "Number of subjects:${num_subjects}"
 echo "r-subject: ${r_subject}"
 
-alpha_values=(0.01 0.05 0.1 0.15 0.2 0.25 0.3)
-beta_values=(0.01 0.05 0.1 0.15 0.2 0.25 0.3)
+# For cross-validation
+## alpha_values=(0.01 0.05 0.1 0.15 0.2 0.25 0.3)
+## beta_values=(0.01 0.05 0.1 0.15 0.2 0.25 0.3)
+## num_cd=0
+## num_cv=100
 
-num_cd=0
-num_cv=100
+# For community-detection
+alpha_values=(0.01 0.025 0.05 0.075 0.1)
+beta_values=(0.01 0.025 0.05 0.075 0.1)
+num_cd=100
+num_cv=1
 
 for ((i = 0 ; i < num_cv ; i++)); do
-  for alpha in ${alpha_values[@]}; do
 
+  for alpha in ${alpha_values[@]}; do
     python ${curr_dir}simulation.py \
       --class-dcbm=${class_dcbm} --case-msd=${case_msd} \
       --time-horizon=${time_horizon} --r-time=${r_time} \
@@ -78,6 +84,7 @@ for ((i = 0 ; i < num_cv ; i++)); do
         --time-horizon=${time_horizon} --r-time=${r_time} \
         --num-subjects=${num_subjects} --r-subject=${r_subject} \
         cv-muspces --alpha=${alpha} --beta=${beta}
+
     done
   done
 done
