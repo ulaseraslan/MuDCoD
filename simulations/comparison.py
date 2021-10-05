@@ -10,10 +10,10 @@ NW_COMPARE_DIR = RESULT_DIR / "network_comparison"
 sys.path.append(str(MAIN_DIR))
 
 
-import dypoces.dcbm as dcbm  # noqa: E402
+import mudcod.dcbm as dcbm  # noqa: E402
 
-from dypoces.utils import sutils  # noqa: E402
-from dypoces.nw import Similarity  # noqa: E402
+from mudcod.utils import sutils  # noqa: E402
+from mudcod.nw import Similarity  # noqa: E402
 
 sutils.safe_create_dir(NW_COMPARE_DIR)
 

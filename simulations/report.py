@@ -15,9 +15,9 @@ FIGURE_DIR = RESULT_DIR / "simulation_figures"
 sys.path.append(str(MAIN_DIR))
 
 
-import dypoces.utils.visualization as VIS  # noqa: E402
+import mudcod.utils.visualization as VIS  # noqa: E402
 
-from dypoces.utils import sutils  # noqa: E402
+from mudcod.utils import sutils  # noqa: E402
 
 sns.set_theme(style="whitegrid")
 sutils.safe_create_dir(RESULTS_PATH)

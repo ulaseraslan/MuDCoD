@@ -15,11 +15,11 @@ SIMULATION_DIR = MAIN_DIR / "simulations"
 RESULT_DIR = MAIN_DIR / "results"
 sys.path.append(str(MAIN_DIR))
 
-from dypoces.dcbm import MuSDynamicDCBM  # noqa: E402
-from dypoces.muspces import MuSPCES  # noqa: E402
-from dypoces.pisces import PisCES  # noqa: E402
-from dypoces.static import Static  # noqa: E402
-from dypoces.utils import sutils  # noqa: E402
+from mudcod.dcbm import MuSDynamicDCBM  # noqa: E402
+from mudcod.muspces import MuSPCES  # noqa: E402
+from mudcod.pisces import PisCES  # noqa: E402
+from mudcod.static import Static  # noqa: E402
+from mudcod.utils import sutils  # noqa: E402
 
 parser = argparse.ArgumentParser(
     description="Multi-subject Dynamic Degree-corrected Block Model simulation."

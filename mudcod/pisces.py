@@ -12,9 +12,9 @@ if __name__ == "__main__":
 
     sys.path.append("../")
 
-from dypoces.nw import Loss, Similarity
-from dypoces.utils.sutils import timeit, log
-from dypoces.spectral import SpectralClustering
+from mudcod.nw import Loss, Similarity
+from mudcod.utils.sutils import timeit, log
+from mudcod.spectral import SpectralClustering
 
 
 warnings.filterwarnings(action="ignore", category=np.ComplexWarning)
@@ -352,7 +352,7 @@ class PisCES(SpectralClustering):
 
 if __name__ == "__main__":
     # One easy cv example for PisCES.
-    from dypoces.dcbm import DynamicDCBM
+    from mudcod.dcbm import DynamicDCBM
 
     n = 500
     th = 8

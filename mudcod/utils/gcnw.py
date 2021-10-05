@@ -16,8 +16,8 @@ if __name__ == "__main__":
     sys.path.append(str(MAIN_DIR))
 
 
-import dypoces.utils.sutils as sutils  # noqa: E402
-import dypoces.nw as nw  # noqa: E402
+import mudcod.utils.sutils as sutils  # noqa: E402
+import mudcod.nw as nw  # noqa: E402
 
 
 class GCNW:

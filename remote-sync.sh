@@ -22,11 +22,11 @@ shift $((OPTIND-1))
 
 [ "${1:-}" = "--" ] && shift
 
-path_list=( "/dypoces/" "/simulations/" "/experiments/")
+path_list=( "/mudcod/" "/experiments/" "/simulations/")
 for sub_path in "${path_list[@]}"
 do
     echo ${sub_path}
-    SYNC=tosun:dypoces${sub_path}
+    SYNC=tosun:mudcod${sub_path}
     rsync -arviz --exclude="**/log/*" --exclude="**/configurations/*" \
       ${SCRIPTPATH}${sub_path} $SYNC ${wrt} ${del}
 done

@@ -7,8 +7,8 @@ from scipy.sparse.linalg import eigs
 from scipy.linalg import sqrtm
 from sklearn.cluster import KMeans
 
-from dypoces.spectral import SpectralClustering
-from dypoces.utils.sutils import log
+from mudcod.spectral import SpectralClustering
+from mudcod.utils.sutils import log
 
 
 warnings.filterwarnings(action="ignore", category=np.ComplexWarning)
