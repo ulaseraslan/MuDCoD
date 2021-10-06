@@ -5,7 +5,7 @@ from pathlib import Path
 
 MAIN_DIR = Path(__file__).absolute().parent.parent
 SIMULATION_DIR = MAIN_DIR / "simulations"
-RESULT_DIR = MAIN_DIR / "results-aug20"
+RESULT_DIR = MAIN_DIR / "results"
 NW_COMPARE_DIR = RESULT_DIR / "network_comparison"
 sys.path.append(str(MAIN_DIR))
 
@@ -19,7 +19,7 @@ sutils.safe_create_dir(NW_COMPARE_DIR)
 
 
 def compare_rtime_MuSDynamicDCBM(
-    n, k, p_in, p_out, th, r_time_grid, ns, r_subject, case
+    n, k, p_in, p_out, th, r_time_grid, ns, r_subject, scenario
 ):
     membership_distances = np.zeros((len(r_time_grid), th, th))
     for i, r_time in enumerate(r_time_grid):
@@ -33,7 +33,9 @@ def compare_rtime_MuSDynamicDCBM(
             r_time=r_time,
             r_subject=r_subject,
         )
-        adj_ms_series, z_series = ms_dyn_dcbm.simulate_ms_dynamic_dcbm(case=case)
+        adj_ms_series, z_series = ms_dyn_dcbm.simulate_ms_dynamic_dcbm(
+            scenario=scenario
+        )
         for ti in range(th):
             for tj in range(ti, th):
                 membership_dist_total = 0
@@ -50,7 +52,7 @@ def compare_rtime_MuSDynamicDCBM(
 
 
 def compare_rsubject_MuSDynamicDCBM(
-    n, k, p_in, p_out, th, r_time, ns, r_subject_grid, case
+    n, k, p_in, p_out, th, r_time, ns, r_subject_grid, scenario
 ):
     membership_distances = np.zeros((len(r_subject_grid), ns, ns))
     for i, r_subject in enumerate(r_subject_grid):
@@ -64,7 +66,9 @@ def compare_rsubject_MuSDynamicDCBM(
             r_time=r_time,
             r_subject=r_subject,
         )
-        adj_ms_series, z_series = ms_dyn_dcbm.simulate_ms_dynamic_dcbm(case=case)
+        adj_ms_series, z_series = ms_dyn_dcbm.simulate_ms_dynamic_dcbm(
+            scenario=scenario
+        )
         for si in range(ns):
             for sj in range(si, ns):
                 membership_dist_total = 0

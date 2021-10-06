@@ -20,8 +20,7 @@ from mudcod.spectral import SpectralClustering
 warnings.filterwarnings(action="ignore", category=np.ComplexWarning)
 
 _eps = 10 ** (-10)
-## CONVERGENCE_CRITERIA = 10 ** (-3)
-CONVERGENCE_CRITERIA = 0
+CONVERGENCE_CRITERIA = 10 ** (-5)
 
 
 class MuSPCES(SpectralClustering):
@@ -29,7 +28,16 @@ class MuSPCES(SpectralClustering):
         super().__init__("muspces", verbose=verbose)
         self.convergence_monitor = []
 
-    def fit(self, adj, degree_correction=True):
+    def fit(
+        self,
+        adj,
+        alpha=None,
+        beta=None,
+        k_max=None,
+        n_iter=30,
+        degree_correction=True,
+        monitor_convergence=False,
+    ):
         """
         Parameters
         ----------
@@ -37,9 +45,26 @@ class MuSPCES(SpectralClustering):
             adjacency matrices with dimention (ns,th,n,n), where
             n is the number of nodes, th is the number of time time steps,
             and ns is the total number of subjects.
+        alpha
+            smoothing tuning parameter, along time axis, default is
+            0.05J(th,2).
+        beta
+            smoothing tuning parameter, among the subjects, default is
+            0.01J(ns).
+        k_max
+            maximum number of communities, default is n/10.
+        n_iter
+            number of iteration of pisces, default is 30.
         degree_correction
             Laplacianized, default is 'True'.
             'True' for degree correction.
+        monitor_convergence
+            if True, method reports convergence based on ||U_{t} - U_{t-1}||
+            and |obj_t - obj_{t-1}> at each iteration.
+
+        Returns
+        -------
+        embeddings: computed spectral embeddings, with shape (ns, th, n, k)
         """
         assert type(adj) in [np.ndarray, np.memmap] and adj.ndim == 4
 
@@ -51,51 +76,6 @@ class MuSPCES(SpectralClustering):
         self.degree_correction = degree_correction
         self.degree = deepcopy(adj)
 
-        if self.verbose:
-            log(
-                f"MuSPCES-fit ~ #nodes:{self.n}, "
-                f"#time:{self.time_horizon}, "
-                f"#num-sbj:{self.num_subjects}"
-            )
-
-        if self.degree_correction:
-            for t in range(self.time_horizon):
-                for sbj in range(self.num_subjects):
-                    adj_t = self.adj[sbj, t, :, :]
-                    dg = np.diag(np.sum(np.abs(adj_t), axis=0) + _eps)
-                    sqinv_degree = sqrtm(inv(dg))
-                    self.adj[sbj, t, :, :] = sqinv_degree @ adj_t @ sqinv_degree
-                    self.degree[sbj, t, :, :] = dg
-        else:
-            for t in range(self.time_horizon):
-                for sbj in range(self.num_subjects):
-                    self.degree[sbj, t, :, :] = np.eye(self.n)
-
-    def predict(
-        self, alpha=None, beta=None, k_max=None, n_iter=30, monitor_convergence=False
-    ):
-        """
-        Parameters
-        ----------
-        alpha
-            smoothing tuning parameter, along time axis, default is
-            0.05J(th,2).
-        beta
-            smoothing tuning parameter, among the subjects, default is
-            0.01J(ns).
-        k_max
-            maximum number of communities, default is n/10.
-        n_iter
-            number of iteration of pisces, default is 30.
-
-        monitor_convergence
-            if True, method reports convergence based on ||U_{t} - U_{t-1}||
-            and |obj_t - obj_{t-1}> at each iteration.
-
-        Returns
-        -------
-        z_series: community prediction for each time point, with shape (ns, th, n).
-        """
         ns = self.num_subjects
         th = self.time_horizon
         n = self.n
@@ -111,30 +91,45 @@ class MuSPCES(SpectralClustering):
         if k_max is None:
             k_max = n // 10
             log(f"k_max is not provided, default value is floor({n}/10).")
-
         if th < 2:
             raise ValueError(
                 "Time horizon must be at least 2, otherwise use static spectral "
                 "clustering."
             )
-
         assert alpha.shape == (th, 2)
         assert beta.shape == (ns,)
         assert k_max > 0
 
-        self.convergence_monitor = []
-        diffU = 0
-
         if self.verbose:
             log(
-                f"MuSPCES-predict ~ "
-                f"alpha:{alpha[0,0]}, beta:{beta[0]}, "
-                f"k_max:{k_max}, n_iter:{n_iter}"
+                "MuSPCES-fit ~ "
+                f"#nodes:{self.n}, "
+                f"#time:{self.time_horizon}, "
+                f"#num-sbj:{self.num_subjects}, "
+                f"alpha:{alpha[0,0]}, "
+                f"beta:{beta[0]}, "
+                f"k_max:{k_max}, "
+                f"n_iter:{n_iter}"
             )
 
         k = np.zeros((ns, th)).astype(int) + k_max
-        objective = np.zeros((n_iter))
         v_col = np.zeros((ns, th, n, k_max))
+        objective = np.zeros((n_iter))
+        self.convergence_monitor = []
+        diffU = 0
+
+        if self.degree_correction:
+            for t in range(self.time_horizon):
+                for sbj in range(self.num_subjects):
+                    adj_t = self.adj[sbj, t, :, :]
+                    dg = np.diag(np.sum(np.abs(adj_t), axis=0) + _eps)
+                    sqinv_degree = sqrtm(inv(dg))
+                    self.adj[sbj, t, :, :] = sqinv_degree @ adj_t @ sqinv_degree
+                    self.degree[sbj, t, :, :] = dg
+        else:
+            for t in range(self.time_horizon):
+                for sbj in range(self.num_subjects):
+                    self.degree[sbj, t, :, :] = np.eye(self.n)
 
         # Initialization of k, v_col.
         for t in range(th):
@@ -142,7 +137,6 @@ class MuSPCES(SpectralClustering):
                 adj_t = adj[sbj, t, :, :]
                 k[sbj, t] = self.choose_k(adj_t, adj_t, degree[sbj, t, :, :], k_max)
                 _, v_col[sbj, t, :, : k[sbj, t]] = eigs(adj_t, k=k[sbj, t], which="LM")
-
                 if monitor_convergence:
                     diffU = diffU + (
                         Similarity.hamming_distance(
@@ -153,7 +147,9 @@ class MuSPCES(SpectralClustering):
                     )
         self.convergence_monitor.append((-np.inf, diffU))
 
+        total_itr = 0
         for itr in range(n_iter):
+            total_itr += 1
             v_col_pv = deepcopy(v_col)
             diffU = 0
             for t in range(th):
@@ -222,7 +218,8 @@ class MuSPCES(SpectralClustering):
                                 @ v_col_pv[sbj, t, :, : k[sbj, t]].T,
                             )
                         )
-            self.convergence_monitor.append((objective[itr], diffU))
+            if monitor_convergence:
+                self.convergence_monitor.append((objective[itr], diffU))
 
             if self.verbose:
                 log(
@@ -231,25 +228,50 @@ class MuSPCES(SpectralClustering):
 
             if itr >= 1:
                 diff_obj = objective[itr] - objective[itr - 1]
-
                 if abs(diff_obj) < CONVERGENCE_CRITERIA:
                     break
 
-        if objective[itr] - objective[itr - 1] >= CONVERGENCE_CRITERIA:
+        if (
+            (total_itr > 0)
+            and (total_itr == n_iter)
+            and (objective[-1] - objective[-2] >= CONVERGENCE_CRITERIA)
+        ):
             warnings.warn("MuSPCES does not converge!", RuntimeWarning)
             if self.verbose:
                 log(
                     f"MuSPCES does not converge for alpha={alpha[0, 0]}, beta={beta[0]}."
                 )
 
-        self.representations = v_col
+        self.embeddings = v_col
         self.model_order_k = k
+
+        return self.embeddings
+
+    def predict(
+        self,
+    ):
+        """
+        Parameters
+        ----------
+
+        Returns
+        -------
+        z_series: community prediction for each time point, with shape (ns, th, n).
+        """
+        ns = self.num_subjects
+        th = self.time_horizon
+        n = self.n
+
+        if self.verbose:
+            log("MuSPCES-predict ~ ")
 
         z = np.empty((ns, th, n), dtype=int)
         for t in range(th):
             for sbj in range(ns):
-                kmeans = KMeans(n_clusters=k[sbj, t])
-                z[sbj, t, :] = kmeans.fit_predict(v_col[sbj, t, :, : k[sbj, t]])
+                kmeans = KMeans(n_clusters=self.model_order_k[sbj, t])
+                z[sbj, t, :] = kmeans.fit_predict(
+                    self.embeddings[sbj, t, :, : self.model_order_k[sbj, t]]
+                )
         return z
 
     def fit_predict(
@@ -262,14 +284,16 @@ class MuSPCES(SpectralClustering):
         n_iter=30,
         monitor_convergence=False,
     ):
-        self.fit(adj, degree_correction=degree_correction)
-        return self.predict(
+        self.fit(
+            adj,
             alpha=alpha,
             beta=beta,
             k_max=k_max,
             n_iter=n_iter,
+            degree_correction=degree_correction,
             monitor_convergence=monitor_convergence,
         )
+        return self.predict()
 
     @timeit
     def cross_validation(
@@ -315,7 +339,6 @@ class MuSPCES(SpectralClustering):
 
         if self.degree_correction:
             raise ValueError("Adjacency matrix must be unlaplacianized.")
-
         if alpha is None:
             alpha = 0.05 * np.ones((th, 2))
             log(f"alpha is not provided, default value is 0.05J({th},2).")
@@ -325,13 +348,11 @@ class MuSPCES(SpectralClustering):
         if k_max is None:
             k_max = n // 10
             log(f"k_max is not provided, default value is floor({n}/10).")
-
         if th < 2:
             raise ValueError(
                 "Time horizon must be at least 2, otherwise use static spectral "
                 "clustering."
             )
-
         assert alpha.shape == (th, 2)
         assert beta.shape == (ns,)
         assert k_max > 0
@@ -437,16 +458,16 @@ if __name__ == "__main__":
     from mudcod.dcbm import MuSDynamicDCBM
 
     model_dcbm = MuSDynamicDCBM(
-        n=500,
-        k=10,
+        n=100,
+        k=3,
         p_in=(0.3, 0.3),
         p_out=0.1,
-        time_horizon=10,
+        time_horizon=2,
         r_time=0.2,
         num_subjects=5,
         r_subject=0.2,
     )
-    adj_ms_series, z_ms_series = model_dcbm.simulate_ms_dynamic_dcbm(case=0)
+    adj_ms_series, z_true_ms_series = model_dcbm.simulate_ms_dynamic_dcbm(scenario=0)
 
     muspces = MuSPCES(verbose=True)
 
@@ -455,16 +476,18 @@ if __name__ == "__main__":
     k_max = 10
     n_iter = 30
 
-    muspces.fit(adj_ms_series[:, :, :], degree_correction=True)
-    muspces.predict(
-        alpha=alpha, beta=beta, k_max=k_max, n_iter=n_iter, monitor_convergence=True
+    muspces.fit(
+        adj_ms_series[:, :, :],
+        alpha=alpha,
+        beta=beta,
+        k_max=k_max,
+        n_iter=n_iter,
+        monitor_convergence=True,
+        degree_correction=True,
     )
+    z_pred_ms_series = muspces.predict()
     print(muspces.convergence_monitor)
-    ## modu, logllh = muspces.cross_validation(
-    ##     alpha=alpha,
-    ##     beta=beta,
-    ##     k_max=k_max,
-    ##     n_iter=n_iter,
-    ##     n_splits=5,
-    ##     n_jobs=1,
-    ## )
+
+    from sklearn.metrics.cluster import adjusted_rand_score
+
+    print(adjusted_rand_score(z_true_ms_series[0, 0, :], z_pred_ms_series[0, 0, :]))

@@ -7,6 +7,11 @@ from scipy.sparse.linalg import eigs
 from scipy.linalg import sqrtm
 from sklearn.cluster import KMeans
 
+if __name__ == "__main__":
+    import sys
+
+    sys.path.append("../")
+
 from mudcod.spectral import SpectralClustering
 from mudcod.utils.sutils import log
 
@@ -20,15 +25,21 @@ class Static(SpectralClustering):
     def __init__(self, verbose=False):
         super().__init__("static", verbose=verbose)
 
-    def fit(self, adj, degree_correction=True):
+    def fit(self, adj, k_max=None, degree_correction=True):
         """
         Parameters
         ----------
         adj
             adjacency matrices with dimention (n,n),
             n is the number of nodes.
+        k_max
+            maximum number of communities, default is n/10.
         degree_correction
             degree normalization, default is 'True'.
+
+        Returns
+        -------
+        embeddings: computed spectral embeddings, with shape (n, k)
         """
         assert type(adj) in [np.ndarray, np.memmap] and adj.ndim == 2
 
@@ -38,8 +49,16 @@ class Static(SpectralClustering):
         self.degree = deepcopy(adj)
         self.degree_correction = degree_correction
 
+        if k_max is None:
+            k_max = self.n // 10
+            log(f"k_max is not provided, default value is floor({self.n}/10).")
         if self.verbose:
-            log(f"Static-fit ~ #nodes:{self.n}")
+            log(
+                f"Static-fit ~ "
+                f"#nodes:{self.n}, "
+                f"k-max:{k_max}, "
+                f"degree-correction:{degree_correction}"
+            )
 
         if self.degree_correction:
             dg = np.diag(np.sum(np.abs(adj), axis=0) + _eps)
@@ -49,42 +68,57 @@ class Static(SpectralClustering):
         else:
             self.degree = np.eye(self.n)
 
-    def predict(self, k_max=None, n_iter=30):
+        # initialization of k, v_col.
+        v_col = np.zeros((self.n, k_max))
+        k = self.choose_k(self.adj, self.adj, self.degree, k_max)
+        _, v_col[:, :k] = eigs(self.adj, k=k, which="LM")
+
+        self.embeddings = v_col
+        self.model_order_k = k
+
+        return self.embeddings
+
+    def predict(self):
         """
         Parameters
         ----------
-        k_max
-            maximum number of communities, default is n/10.
 
         Returns
         -------
         z_series: community prediction for each time point, with shape (n).
         """
-        n = self.n
-        adj = self.adj
-        degree = self.degree
-
-        if k_max is None:
-            k_max = n // 10
-            log(f"k_max is not provided, default value is floor({n}/10).")
-
         if self.verbose:
-            log(f"Static-predict ~ k_max:{k_max}")
+            log("Static-predict ~ ")
 
-        v_col = np.zeros((n, k_max))
-
-        # initialization of k, v_col.
-        k = self.choose_k(adj, adj, degree, k_max)
-        _, v_col[:, :k] = eigs(adj, k=k, which="LM")
-
-        self.representations = v_col
-        self.model_order_k = k
-
-        kmeans = KMeans(n_clusters=k)
-        z = kmeans.fit_predict(v_col[:, :k])
+        kmeans = KMeans(n_clusters=self.model_order_k)
+        z = kmeans.fit_predict(self.embeddings[:, : self.model_order_k])
 
         return z
 
-    def fit_predict(self, adj, k_max=None, n_iter=30):
-        self.fit(adj, degree_correction=True)
-        return self.predict(k_max=k_max, n_iter=n_iter)
+    def fit_predict(self, adj, k_max=None, degree_correction=True):
+        self.fit(adj, k_max=k_max, degree_correction=degree_correction)
+        return self.predict()
+
+
+if __name__ == "__main__":
+    # One easy cv example for PisCES.
+    from mudcod.dcbm import DynamicDCBM
+
+    n = 100
+    th = 1
+    model_dcbm = DynamicDCBM(
+        n=n,
+        k=2,
+        p_in=(0.2, 0.25),
+        p_out=0.1,
+        time_horizon=th,
+        r_time=0.1,
+    )
+    adj_series, z_true_series = model_dcbm.simulate_dynamic_dcbm()
+
+    static = Static(verbose=True)
+    z = static.fit_predict(adj_series[0])
+
+    from sklearn.metrics.cluster import adjusted_rand_score
+
+    print(adjusted_rand_score(z, z_true_series[0]))

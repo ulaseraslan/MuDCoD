@@ -75,7 +75,7 @@ fold_splits = []
 
 for idx, split in enumerate(splits):
     fold_splits.append(split)
-    ## expt_utils.log(f"Processing fold-{idx+1}...")
+    expt_utils.log(f"Processing fold-{idx+1}...")
     ## for sbj in range(num_sbj):
     ##     for t in range(th):
     ##         z_static_folded[idx, sbj, t, :] = static.fit_predict(
@@ -124,7 +124,9 @@ expt_utils.log(fold_splits)
 ## expt_utils.log(f"mean(ARI)(pisces):{np.mean(ari_pisces)}")
 expt_utils.log(f"mean(ARI)(muspces):{np.mean(ari_muspces)}")
 
-outfile_z = expt_utils.get_result_path(cell_type, percentile) / "folded_pred_communities.npy"
+outfile_z = (
+    expt_utils.get_result_path(cell_type, percentile) / "folded_pred_communities.npy"
+)
 np.save(outfile_z, z_muspces_folded)
 outfile_split = expt_utils.get_result_path(cell_type, percentile) / "fold_splits.npy"
 np.save(outfile_split, np.array(fold_splits))

@@ -136,7 +136,7 @@ class MuSDynamicDCBM(DynamicDCBM):
         adj, z_new = self.dcbm(z_new)
         return adj, z_new
 
-    def simulate_ms_dynamic_dcbm(self, case=3):
+    def simulate_ms_dynamic_dcbm(self, scenario=3):
         n = self.n
         th = self.time_horizon
         num_sbj = self.num_subjects
@@ -144,14 +144,14 @@ class MuSDynamicDCBM(DynamicDCBM):
         z_ms_series = np.empty((num_sbj, th, n), dtype=int)
 
         # Totally independent subjects, evolve independently.
-        if case == 0:
+        if scenario == 0:
             for sbj in range(num_sbj):
                 (
                     adj_ms_series[sbj, :, :, :],
                     z_ms_series[sbj, :, :],
                 ) = self.simulate_dynamic_dcbm()
         # Subjects are siblings at time 0, then they evolve independently.
-        elif case == 1:
+        elif scenario == 1:
             z_init = self._get_random_z()
             adj_ms_series[0, 0, :, :], z_ms_series[0, 0, :] = self.dcbm(z_init)
             for sbj in range(1, num_sbj):
@@ -165,7 +165,7 @@ class MuSDynamicDCBM(DynamicDCBM):
                         adj_ms_series[sbj, t, :, :],
                         z_ms_series[sbj, t, :],
                     ) = self.dynamic_dcbm(z_ms_series[sbj, t - 1, :])
-        elif case == 2:
+        elif scenario == 2:
             z_init = self._get_random_z()
             adj_ms_series[0, 0, :, :], z_ms_series[0, 0, :] = self.dcbm(z_init)
             for sbj in range(1, num_sbj):
@@ -179,7 +179,7 @@ class MuSDynamicDCBM(DynamicDCBM):
                         adj_ms_series[sbj, t, :, :],
                         z_ms_series[sbj, t, :],
                     ) = self.dynamic_dcbm(z_ms_series[sbj, t - 1, :])
-        elif case == 3:
+        elif scenario == 3:
             (
                 adj_ms_series[0, :, :, :],
                 z_ms_series[0, :, :],
@@ -190,7 +190,7 @@ class MuSDynamicDCBM(DynamicDCBM):
                         adj_ms_series[sbj, t, :, :],
                         z_ms_series[sbj, t, :],
                     ) = self.mus_dynamic_dcbm(z_ms_series[0, t, :])
-        elif case == 4:
+        elif scenario == 4:
             (
                 adj_ms_series[0, :, :, :],
                 z_ms_series[0, :, :],
@@ -202,7 +202,7 @@ class MuSDynamicDCBM(DynamicDCBM):
                         z_ms_series[sbj, t, :],
                     ) = self.mus_dynamic_dcbm(z_ms_series[sbj - 1, t, :])
         else:
-            raise ValueError(f"Given case number {case} is not defined.")
+            raise ValueError(f"Given scenario number {scenario} is not defined.")
 
         return adj_ms_series, z_ms_series
 
@@ -218,5 +218,5 @@ if __name__ == "__main__":
     Ns = 4
     MSDDCBM = MuSDynamicDCBM(n, k, p_in, p_out, T, r_time, Ns, r_subject)
     for i in [0, 1, 2, 3, 4]:
-        adj_ms_series, z_ms_series = MSDDCBM.simulate_ms_dynamic_dcbm(case=i)
+        adj_ms_series, z_ms_series = MSDDCBM.simulate_ms_dynamic_dcbm(scenario=i)
         ## print(adj_ms_series, z_ms_series)

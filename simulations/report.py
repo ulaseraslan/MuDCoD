@@ -44,7 +44,7 @@ def get_info_from_name(simul_name):
     if simul_name.startswith(".") or len(simul_info) != 6:
         raise ValueError(f"Unkown simulation name format: {simul_name}.")
 
-    class_dcbm, case_msd, th, rt, ns, rs = (
+    class_dcbm, scenario_msd, th, rt, ns, rs = (
         simul_info[0],
         simul_info[1],
         simul_info[2],
@@ -56,7 +56,7 @@ def get_info_from_name(simul_name):
     ns, th = mkint(ns), mkint(th)
     rs, rt = mkfloat(rs), mkfloat(rt)
 
-    return class_dcbm, case_msd, th, rt, ns, rs
+    return class_dcbm, scenario_msd, th, rt, ns, rs
 
 
 def read_cv_results(results_path, multi_index=False):
@@ -68,10 +68,12 @@ def read_cv_results(results_path, multi_index=False):
 
     for i, path in enumerate(sorted(result_dirs)):
         simul_name = str(path.stem)
-        class_dcbm, case_msd, th, rt, ns, rs = get_info_from_name(simul_name)
+        class_dcbm, scenario_msd, th, rt, ns, rs = get_info_from_name(simul_name)
 
         percent = round(100 * i / num_result, 2)
-        print(f"Procesing:%{percent}", class_dcbm, case_msd, th, rt, ns, rs, end="\r")
+        print(
+            f"Procesing:%{percent}", class_dcbm, scenario_msd, th, rt, ns, rs, end="\r"
+        )
 
         cv_path = path / "cross_validation"
         muspces_cv_path = cv_path.glob("muspces*.csv")
@@ -79,39 +81,40 @@ def read_cv_results(results_path, multi_index=False):
             tempDf = pd.read_csv(mpath)
             alpha = float(tempDf["alpha"].iloc[0])
             beta = float(tempDf["beta"].iloc[0])
-            result_dict["row"].append(
-                (
-                    i,
-                    class_dcbm,
-                    case_msd,
-                    th,
-                    rt,
-                    ns,
-                    rs,
-                    alpha,
-                    beta,
-                    "muspces",
+            for j, val in enumerate(tempDf[objkey]):
+                result_dict["val"].append(val)
+                result_dict["row"].append(
+                    (
+                        j,
+                        class_dcbm,
+                        scenario_msd,
+                        th,
+                        rt,
+                        ns,
+                        rs,
+                        alpha,
+                        beta,
+                        "muspces",
+                    )
                 )
-            )
-            result_dict["val"].append(tempDf[objkey].mean())
 
         pisces_cv_path = cv_path.glob("pisces*.csv")
-        for ppath in sorted(pisces_cv_path):
+        for i, ppath in enumerate(sorted(pisces_cv_path)):
             tempDf = pd.read_csv(ppath)
             alpha = float(tempDf["alpha"].iloc[0])
             beta = np.nan
-            for i, val in enumerate(tempDf[objkey]):
-                result_dict["row"].append(
-                    (i, class_dcbm, case_msd, th, rt, ns, rs, alpha, beta, "pisces")
-                )
+            for j, val in enumerate(tempDf[objkey]):
                 result_dict["val"].append(val)
+                result_dict["row"].append(
+                    (j, class_dcbm, scenario_msd, th, rt, ns, rs, alpha, beta, "pisces")
+                )
 
     index_row = pd.MultiIndex.from_tuples(
         result_dict["row"],
         names=[
             "id",
             "class-dcbm",
-            "case-msd",
+            "scenario-msd",
             "time-horizon",
             "r_time",
             "num-subjects",
@@ -136,17 +139,19 @@ def read_comm_results(results_path, multi_index=False):
 
     for i, path in enumerate(sorted(result_dirs)):
         simul_name = str(path.stem)
-        class_dcbm, case_msd, th, rt, ns, rs = get_info_from_name(simul_name)
+        class_dcbm, scenario_msd, th, rt, ns, rs = get_info_from_name(simul_name)
 
         percent = round(100 * i / num_result, 2)
-        print(f"Procesing:%{percent}", class_dcbm, case_msd, th, rt, ns, rs, end="\r")
+        print(
+            f"Procesing:%{percent}", class_dcbm, scenario_msd, th, rt, ns, rs, end="\r"
+        )
 
         community_detection_path = path / "community_detection"
         muspces_comm_path = community_detection_path.glob("muspces*.csv")
         for i, mpath in enumerate(sorted(muspces_comm_path)):
             temp = np.genfromtxt(mpath, delimiter=",")
             result_dict["row"].append(
-                (i, class_dcbm, case_msd, th, rt, ns, rs, "muspces")
+                (i, class_dcbm, scenario_msd, th, rt, ns, rs, "muspces")
             )
             result_dict["val"].append(np.mean(temp))
 
@@ -154,7 +159,7 @@ def read_comm_results(results_path, multi_index=False):
         for i, ppath in enumerate(sorted(pisces_comm_path)):
             temp = np.genfromtxt(ppath, delimiter=",")
             result_dict["row"].append(
-                (i, class_dcbm, case_msd, th, rt, ns, rs, "pisces")
+                (i, class_dcbm, scenario_msd, th, rt, ns, rs, "pisces")
             )
             result_dict["val"].append(np.mean(temp))
 
@@ -162,7 +167,7 @@ def read_comm_results(results_path, multi_index=False):
         for i, spath in enumerate(sorted(static_comm_path)):
             temp = np.genfromtxt(spath, delimiter=",")
             result_dict["row"].append(
-                (i, class_dcbm, case_msd, th, rt, ns, rs, "static")
+                (i, class_dcbm, scenario_msd, th, rt, ns, rs, "static")
             )
             result_dict["val"].append(np.mean(temp))
 
@@ -171,7 +176,7 @@ def read_comm_results(results_path, multi_index=False):
         names=[
             "id",
             "class-dcbm",
-            "case-msd",
+            "scenario-msd",
             "time-horizon",
             "r_time",
             "num-subjects",
@@ -203,25 +208,27 @@ def plot_community_detection_results(results_path, figure_path):
     sutils.safe_create_dir(output_path)
 
     for class_dcbm in unique_col_val["class-dcbm"]:
-        for case_msd in unique_col_val["case-msd"]:
+        for scenario_msd in unique_col_val["scenario-msd"]:
             for ns in unique_col_val["num-subjects"]:
                 mask_trip = (
                     (results_df["class-dcbm"] == class_dcbm)
-                    & (results_df["case-msd"] == case_msd)
+                    & (results_df["scenario-msd"] == scenario_msd)
                     & (results_df["num-subjects"] == ns)
                 )
                 data = results_df[mask_trip]
                 title = f"dcbm-class: {class_dcbm} "
-                title += f"case-msd: {case_msd} "
+                title += f"scenario-msd: {scenario_msd} "
                 title += f"num-subjects: {str(ns)}"
                 g = VIS.point_catplot(
                     data=data, x=x, y=y, hue=hue, col=col, row=row, title=title
                 )
                 g.fig.savefig(
-                    output_path / f"{class_dcbm}_{case_msd}_ns{ns}.png",
+                    output_path / f"{class_dcbm}_{scenario_msd}_ns{ns}.png",
                     bbox_inches="tight",
                 )
-    # }}}
+
+
+# }}}
 
 
 def plot_cross_validation_results(results_path, figure_path, objkey="loglikelihood"):
@@ -235,19 +242,19 @@ def plot_cross_validation_results(results_path, figure_path, objkey="loglikeliho
     sutils.safe_create_dir(figure_path / "cross_validation")
 
     for class_dcbm in unique_col_val["class-dcbm"]:
-        for case_msd in unique_col_val["case-msd"]:
+        for scenario_msd in unique_col_val["scenario-msd"]:
             for ns in unique_col_val["num-subjects"]:
                 for th in unique_col_val["time-horizon"]:
                     title = f"dcbm-class: {class_dcbm}, "
-                    title += f"case-msd: {case_msd}, "
+                    title += f"scenario-msd: {scenario_msd}, "
                     title += f"time horizon: {th}, "
                     title += f"num. of subjects: {ns}, "
                     cvfig_path = figure_path / "cross_validation"
-                    dmsnw_name = f"{class_dcbm}_{case_msd}_th{th}_ns{ns}"
+                    dmsnw_name = f"{class_dcbm}_{scenario_msd}_th{th}_ns{ns}"
                     # == MuSPCES ==
                     mask_trip = (
                         (results_df["class-dcbm"] == class_dcbm)
-                        & (results_df["case-msd"] == case_msd)
+                        & (results_df["scenario-msd"] == scenario_msd)
                         & (results_df["num-subjects"] == ns)
                         & (results_df["time-horizon"] == th)
                     )

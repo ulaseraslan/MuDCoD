@@ -8,7 +8,6 @@ from pathlib import Path
 from copy import deepcopy
 from sklearn.metrics.cluster import adjusted_rand_score
 
-
 logging.captureWarnings(True)
 MAIN_DIR = Path(__file__).absolute().parent.parent
 SIMULATION_DIR = MAIN_DIR / "simulations"
@@ -21,6 +20,11 @@ from mudcod.pisces import PisCES  # noqa: E402
 from mudcod.static import Static  # noqa: E402
 from mudcod.utils import sutils  # noqa: E402
 
+N_ITER_CV = 30
+N_ITER_CD = 40
+ALPHA_VALUES = [0.01, 0.025, 0.05, 0.075, 0.1]
+BETA_VALUES = [0.01, 0.025, 0.05, 0.075, 0.1]
+
 parser = argparse.ArgumentParser(
     description="Multi-subject Dynamic Degree-corrected Block Model simulation."
 )
@@ -32,10 +36,10 @@ parser.add_argument(
     help="DCBM class that will be used.",
 )
 parser.add_argument(
-    "--case-msd",
+    "--scenario-msd",
     required=True,
     type=int,
-    help="MultiSubject Dynamic DCBM that will be used.",
+    help="MultiSubject Dynamic DCBM scenario that will be used.",
 )
 parser.add_argument(
     "--time-horizon", "-t", required=True, type=int, help="Number of time steps."
@@ -75,6 +79,10 @@ community_detection_parser.add_argument(
     "--id-number", required=True, type=int, help="Simulation identity number."
 )
 community_detection_parser.add_argument(
+    "--run-cv", dest="run_cv", action="store_true", required=False
+)
+community_detection_parser.set_defaults(run_cv=False)
+community_detection_parser.add_argument(
     "--obj-key",
     type=str,
     default="loglikelihood",
@@ -101,87 +109,23 @@ def read_cfg(simulation_name):
     return cfg
 
 
-def make_cfg(
-    class_dcbm,
-    case_msd,
-    time_horizon,
-    r_time,
-    num_subjects,
-    r_subject,
-    obj_key="loglikelihood",
-):
-    class_info = read_class_dcbm(class_dcbm)
-    cfg = deepcopy(class_info)
-    cfg["time_horizon"] = time_horizon
-    cfg["r_time"] = r_time
-    cfg["num_subjects"] = num_subjects
-    cfg["r_subject"] = r_subject
-    cfg["case_msd"] = case_msd
-
-    cfg_dir = SIMULATION_DIR / "configurations"
-    simulation_name = SimulationMSDDCBM.get_simulation_name(
-        class_dcbm, case_msd, time_horizon, r_time, num_subjects, r_subject
-    )
-    cfg_path = cfg_dir / (simulation_name + ".yaml")
-    simulation_result_dir = RESULT_DIR / "simulation_results"
-    cv_result_dir = simulation_result_dir / simulation_name / "cross_validation"
-
-    if not cv_result_dir.exists():
-        raise FileNotFoundError(
-            "Corresponding cross-validation result directory can not be found."
-        )
-    pisces_obj_max = -np.inf
-    muspces_obj_max = -np.inf
-    for cv_result_path in sorted(cv_result_dir.glob("*.csv")):
-        cv_name = cv_result_path.stem
-        method = cv_name.split("_")[0].lower()
-        cv_result = {
-            key: list(map(float, values))
-            for key, values in sutils.read_csv_to_dict(cv_result_path).items()
-        }
-
-        obj = np.mean(cv_result[obj_key])
-        if method == "muspces":
-            assert len(set(cv_result["alpha"])) <= 1
-            assert len(set(cv_result["beta"])) <= 1
-            if muspces_obj_max < obj:
-                cfg["muspces_alpha"] = cv_result["alpha"][0]
-                cfg["muspces_beta"] = cv_result["beta"][0]
-                muspces_obj_max = obj
-        elif method == "pisces":
-            assert len(set(cv_result["alpha"])) <= 1
-            if pisces_obj_max < obj:
-                cfg["pisces_alpha"] = cv_result["alpha"][0]
-                pisces_obj_max = obj
-        else:
-            raise ValueError(
-                f"Unkown method {method} is encountered in the cross-validation "
-                f"result directory {cv_result_dir}."
-            )
-
-    sutils.ensure_file_dir(cfg_path)
-    with open(cfg_path, "w") as file:
-        yaml.dump(cfg, file, default_flow_style=False)
-    sutils.log(f"Configutaion created: {cfg_path}")
-    return cfg
-
-
 class SimulationMSDDCBM:
     def __init__(
         self,
         msddcbm_kwargs,
         class_dcbm,
-        case_msd,
+        scenario_msd,
         result_dir=None,
-        n_jobs=1,
         verbose=False,
+        n_jobs=1,
     ):
         self.n_jobs = n_jobs
         self.verbose = verbose
-        self.case_msd = case_msd
+        self.scenario_msd = scenario_msd
+        self.msddcbm_kwargs = msddcbm_kwargs
         self.model = MuSDynamicDCBM(**msddcbm_kwargs)
         self.adj_ms_series, self.z_ms_series = self.model.simulate_ms_dynamic_dcbm(
-            case=self.case_msd
+            scenario=self.scenario_msd
         )
         self.class_dcbm = class_dcbm
         self.simulation_name = self._get_simulation_name()
@@ -195,14 +139,91 @@ class SimulationMSDDCBM:
         )
         sutils.ensure_file_dir(self.simulation_result_path)
 
+    def make_cfg(self, obj_key="loglikelihood", run_cv=False):
+        cfg_tmp = {}
+        cfg_tmp["scenario_msd"] = self.scenario_msd
+        cfg_tmp["time_horizon"] = self.model.time_horizon
+        cfg_tmp["r_time"] = self.model.r_time
+        cfg_tmp["num_subjects"] = self.model.num_subjects
+        cfg_tmp["r_subject"] = self.model.r_subject
+        cfg = {**deepcopy(read_class_dcbm(self.class_dcbm)), **cfg_tmp}
+
+        cfg_dir = SIMULATION_DIR / "configurations"
+        simulation_name = SimulationMSDDCBM.get_simulation_name(
+            self.class_dcbm, **cfg_tmp
+        )
+        cfg_path = cfg_dir / (simulation_name + ".yaml")
+
+        if run_cv:
+            if obj_key == "loglikelihood":
+                obj_idx = 0
+            elif obj_key == "modularity":
+                obj_idx = 1
+            else:
+                assert False
+            pisces_obj_max = -np.inf
+            muspces_obj_max = -np.inf
+            for alpha in ALPHA_VALUES:
+                pisces_obj_vals = self.cv_pisces(alpha, save=True)
+                if pisces_obj_vals[obj_idx] > pisces_obj_max:
+                    cfg["alpha_pisces"] = alpha
+                for beta in BETA_VALUES:
+                    muspces_obj_vals = self.cv_muspces(alpha, beta, save=True)
+                    if muspces_obj_vals[obj_idx] > muspces_obj_max:
+                        cfg["alpha_muspces"] = alpha
+                        cfg["beta_muspces"] = beta
+        else:
+            simulation_result_dir = RESULT_DIR / "simulation_results"
+            cv_result_dir = simulation_result_dir / simulation_name / "cross_validation"
+
+            if not cv_result_dir.exists():
+                raise FileNotFoundError(
+                    "Corresponding cross-validation result directory can not be found."
+                )
+            pisces_obj_max = -np.inf
+            muspces_obj_max = -np.inf
+            for cv_result_path in sorted(cv_result_dir.glob("*.csv")):
+                cv_name = cv_result_path.stem
+                method = cv_name.split("_")[0].lower()
+                cv_result = {
+                    key: list(map(float, values))
+                    for key, values in sutils.read_csv_to_dict(cv_result_path).items()
+                }
+
+                ## obj = np.mean(cv_result[obj_key])
+                obj = cv_result[obj_key][-1]
+                if method == "muspces":
+                    assert len(set(cv_result["alpha"])) <= 1
+                    assert len(set(cv_result["beta"])) <= 1
+                    if muspces_obj_max < obj:
+                        cfg["alpha_muspces"] = cv_result["alpha"][0]
+                        cfg["beta_muspces"] = cv_result["beta"][0]
+                        muspces_obj_max = obj
+                elif method == "pisces":
+                    assert len(set(cv_result["alpha"])) <= 1
+                    if pisces_obj_max < obj:
+                        cfg["alpha_pisces"] = cv_result["alpha"][0]
+                        pisces_obj_max = obj
+                else:
+                    raise ValueError(
+                        f"Unkown method {method} is encountered in the cross-validation "
+                        f"result directory {cv_result_dir}."
+                    )
+
+        sutils.ensure_file_dir(cfg_path)
+        with open(cfg_path, "w") as file:
+            yaml.dump(cfg, file, default_flow_style=False)
+        sutils.log(f"Configuration file created in {cfg_path}.")
+        return cfg
+
     @staticmethod
     def get_simulation_name(
-        class_dcbm, case_msd, time_horizon, r_time, num_subjects, r_subject
+        class_dcbm, scenario_msd, time_horizon, r_time, num_subjects, r_subject
     ):
         simulation_name = "_".join(
             [
                 class_dcbm,
-                "case" + str(case_msd),
+                "scenario" + str(scenario_msd),
                 "th" + str(time_horizon),
                 "rt" + str(r_time)[2:],
                 "ns" + str(num_subjects),
@@ -214,7 +235,7 @@ class SimulationMSDDCBM:
     def _get_simulation_name(self):
         return self.get_simulation_name(
             self.class_dcbm,
-            self.case_msd,
+            self.scenario_msd,
             self.model.time_horizon,
             self.model.r_time,
             self.model.num_subjects,
@@ -228,13 +249,13 @@ class SimulationMSDDCBM:
         th = self.model.time_horizon
 
         muspces = MuSPCES(verbose=self.verbose)
-        muspces.fit(deepcopy(adj_ms_series), degree_correction=False)
+        muspces.fit(deepcopy(adj_ms_series), n_iter=0, degree_correction=False)
 
         modu_muspces, logllh_muspces = muspces.cross_validation(
             alpha=alpha * np.ones((th, 2)),
             beta=beta * np.ones(ns),
             n_jobs=self.n_jobs,
-            n_iter=30,
+            n_iter=N_ITER_CV,
         )
         if save:
             name = "_".join(
@@ -266,9 +287,9 @@ class SimulationMSDDCBM:
         modu_pisces, logllh_pisces = 0, 0
 
         for sbj in range(ns):
-            pisces.fit(adj_ms_series[sbj, :, :, :], degree_correction=False)
+            pisces.fit(adj_ms_series[sbj, :, :, :], n_iter=0, degree_correction=False)
             modu_sbj_pisces, logllh_sbj_pisces = pisces.cross_validation(
-                alpha=alpha * np.ones((th, 2)), n_jobs=self.n_jobs, n_iter=30
+                alpha=alpha * np.ones((th, 2)), n_jobs=self.n_jobs, n_iter=N_ITER_CV
             )
             modu_pisces = modu_pisces + modu_sbj_pisces
             logllh_pisces = logllh_pisces + logllh_sbj_pisces
@@ -323,7 +344,7 @@ class SimulationMSDDCBM:
             alpha=alpha_muspces,
             beta=beta_muspces,
             k_max=self.model.n // 10,
-            n_iter=40,
+            n_iter=N_ITER_CD,
         )
 
         if self.n_jobs > 1:
@@ -335,7 +356,7 @@ class SimulationMSDDCBM:
                         deepcopy(adj_ms_series[sbj, :, :, :]),
                         alpha=alpha_pisces,
                         k_max=self.model.n // 10,
-                        n_iter=40,
+                        n_iter=N_ITER_CD,
                     )
                     for sbj in range(ns)
                 )
@@ -357,7 +378,7 @@ class SimulationMSDDCBM:
                     adj_ms_series[sbj, :, :, :],
                     alpha=alpha_pisces,
                     k_max=self.model.n // 10,
-                    n_iter=40,
+                    n_iter=N_ITER_CD,
                 )
 
             for sbj in range(ns):
@@ -384,9 +405,9 @@ class SimulationMSDDCBM:
 
         if self.verbose:
             sutils.log(
-                f"MuSPCES : {ari_muspces_avg}, "
-                f"PisCES  : {ari_pisces_avg}, "
-                f"Static : {ari_static_avg}"
+                f"ARI(MuSPCES): {ari_muspces_avg}, "
+                f"ARI(PisCES): {ari_pisces_avg}, "
+                f"ARI(Static): {ari_static_avg}"
             )
         if save:
             self.save_community_detection_result("muspces", id_number, ari_muspces)
@@ -414,7 +435,7 @@ if __name__ == "__main__":
     r_time = args.r_time
     num_subjects = args.num_subjects
     r_subject = args.r_subject
-    case_msd = args.case_msd
+    scenario_msd = args.scenario_msd
     n_jobs = args.n_jobs
     verbose = args.verbose
 
@@ -422,7 +443,7 @@ if __name__ == "__main__":
         f"DCBM-class-name:{class_dcbm}, task:{task}, "
         f"time-horizon:{time_horizon}, r-time:{r_time}, "
         f"num-subjects:{num_subjects}, r-subject:{r_subject}, "
-        f"case-MSD:{case_msd}, n-jobs:{n_jobs}, verbose:{verbose}"
+        f"scenario-MSD:{scenario_msd}, n-jobs:{n_jobs}, verbose:{verbose}"
     )
 
     class_info = read_class_dcbm(class_dcbm)
@@ -432,50 +453,43 @@ if __name__ == "__main__":
     msddcbm_kwargs["num_subjects"] = num_subjects
     msddcbm_kwargs["r_subject"] = r_subject
 
-    simul = SimulationMSDDCBM(
+    Simul = SimulationMSDDCBM(
         msddcbm_kwargs,
         class_dcbm,
-        case_msd,
+        scenario_msd,
         result_dir=None,
         n_jobs=n_jobs,
         verbose=verbose,
     )
-    simul.parser_args = args
+    Simul.parser_args = args
 
     if task == "cv-pisces":
         alpha = args.alpha
         sutils.log(f"alpha:{alpha}")
-        simul.cv_pisces(alpha, save=True)
+        Simul.cv_pisces(alpha, save=True)
 
     elif task == "cv-muspces":
         alpha = args.alpha
         beta = args.beta
         sutils.log(f"alpha:{alpha}, beta:{beta}")
-        simul.cv_muspces(alpha, beta, save=True)
+        Simul.cv_muspces(alpha, beta, save=True)
 
     elif task == "community-detection":
         obj_key = args.obj_key
         id_number = args.id_number
-        cfg = make_cfg(
-            class_dcbm,
-            case_msd,
-            time_horizon,
-            r_time,
-            num_subjects,
-            r_subject,
-            obj_key=obj_key,
-        )
-        sutils.log(f"For PisCES::: alpha:{cfg['pisces_alpha']}")
+        run_cv = args.run_cv
+        cfg = Simul.make_cfg(obj_key=obj_key, run_cv=run_cv)
+        sutils.log(f"For PisCES; alpha:{cfg['alpha_pisces']}")
         sutils.log(
-            f"For MuSPCES::: alpha:{cfg['muspces_alpha']}, "
-            f" beta:{cfg['muspces_beta']}"
+            f"For MuSPCES; alpha:{cfg['alpha_muspces']}, "
+            f" beta:{cfg['beta_muspces']}"
         )
         sutils.log(f"objective-key:{obj_key}, identity-number:{id_number}")
-        simul.community_detection(
+        Simul.community_detection(
             id_number,
-            alpha_pisces=cfg["pisces_alpha"],
-            alpha_muspces=cfg["muspces_alpha"],
-            beta_muspces=cfg["muspces_beta"],
+            alpha_pisces=cfg["alpha_pisces"],
+            alpha_muspces=cfg["alpha_muspces"],
+            beta_muspces=cfg["beta_muspces"],
             save=True,
         )
     else:

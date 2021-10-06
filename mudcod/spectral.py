@@ -1,4 +1,3 @@
-from copy import deepcopy
 import numpy as np
 
 from numpy.linalg import inv, eigvals, svd
@@ -14,6 +13,36 @@ class SpectralClustering:
         self.verbose = verbose
         self.method = method.lower()
         assert type(method) == str and method.lower() in ["pisces", "muspces", "static"]
+        self._embedding = None
+        self._model_order_k = None
+
+    @property
+    def embedding(self):
+        if self._embedding is None:
+            raise ValueError("Embeddings are not computed yet, run 'fit' first.")
+        return self._embedding
+
+    @property
+    def model_order_k(self):
+        if self._model_order_k is None:
+            raise ValueError("Model order K is not computed yet, run 'fit' first.")
+        return self._model_order_k
+
+    @embedding.setter
+    def embedding(self, value):
+        if not isinstance(value, np.ndarray):
+            raise ValueError("Embeddings must be instance 'np.ndarray'.")
+        else:
+            self._embedding = value
+
+    @model_order_k.setter
+    def model_order_k(self, value):
+        if self.method in ["pisces", "muspces"] and not isinstance(value, np.ndarray):
+            raise ValueError("Model order K must be instance of 'np.ndarray'.")
+        elif self.method in ["static"] and not isinstance(value, int):
+            raise ValueError("Model order K must be instance of 'int'.")
+        else:
+            self._model_order_k = value
 
     @staticmethod
     def eigen_complete(adj, cvidx, epsilon, k):
@@ -73,4 +102,5 @@ class SpectralClustering:
             k = 1
         else:
             k = max(idx) + 1
+
         return int(k)

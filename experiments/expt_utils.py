@@ -10,10 +10,10 @@ DATA_DIR = MAIN_DIR / "data"
 RESULT_DIR = MAIN_DIR / "results"
 sys.path.append(str(MAIN_DIR))
 
-from dypoces.muspces import MuSPCES  # noqa: E402
-from dypoces.pisces import PisCES  # noqa: E402
-from dypoces.static import Static  # noqa: E402
-from dypoces.utils import sutils  # noqa: E402
+from mudcod.muspces import MuSPCES  # noqa: E402
+from mudcod.pisces import PisCES  # noqa: E402
+from mudcod.static import Static  # noqa: E402
+from mudcod.utils import sutils  # noqa: E402
 
 
 def log(*args):
@@ -41,15 +41,12 @@ def get_adjacency_details(data_path):
     adj_details = sutils.load_yaml(ADJ_DETAILS_PATH)
     return adj_details
 
+
 def get_result_path(cell_type, percentile):
-    RESULT_PATH = (
-        RESULT_DIR
-        / f"{cell_type}/"
-        / f"p{str(percentile)}"
-        / f""
-    )
+    RESULT_PATH = RESULT_DIR / f"{cell_type}/" / f"p{str(percentile)}" / ""
     sutils.safe_create_dir(RESULT_PATH)
     return RESULT_PATH
+
 
 def get_data_path(cell_type, percentile):
     DATA_PATH = (

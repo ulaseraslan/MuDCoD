@@ -20,7 +20,7 @@ from mudcod.spectral import SpectralClustering
 warnings.filterwarnings(action="ignore", category=np.ComplexWarning)
 
 _eps = 10 ** (-10)
-CONVERGENCE_CRITERIA = 10 ** (-3)
+CONVERGENCE_CRITERIA = 10 ** (-5)
 
 
 class PisCES(SpectralClustering):
@@ -28,15 +28,37 @@ class PisCES(SpectralClustering):
         super().__init__("pisces", verbose=verbose)
         self.convergence_monitor = []
 
-    def fit(self, adj, degree_correction=True):
+    def fit(
+        self,
+        adj,
+        alpha=None,
+        k_max=None,
+        n_iter=30,
+        degree_correction=True,
+        monitor_convergence=False,
+    ):
         """
         Parameters
         ----------
         adj
             adjacency matrices with dimention (th,n,n),
             n is the number of nodes and th is the number of time time steps.
+        alpha
+            smoothing tuning parameter, along time axis, default is
+            0.05J(th,2).
+        k_max
+            maximum number of communities, default is n/10.
+        n_iter
+            number of iteration of pisces, default is 30.
         degree_correction
             Laplacianized, default is 'True'.
+        monitor_convergence
+            if True, method reports convergence based on ||U_{t} - U_{t-1}||
+            and |obj_t - obj_{t-1}> at each iteration.
+
+        Returns
+        -------
+        embeddings: computed spectral embeddings, with shape (th, n, k)
         """
         assert type(adj) in [np.ndarray, np.memmap] and adj.ndim == 3
 
@@ -47,8 +69,41 @@ class PisCES(SpectralClustering):
         self.degree_correction = degree_correction
         self.degree = deepcopy(adj)
 
+        th = self.time_horizon
+        n = self.n
+        adj = self.adj
+        degree = self.degree
+
+        if alpha is None:
+            log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
+            alpha = 0.05 * np.ones((th, 2))
+        if k_max is None:
+            k_max = n // 10
+            log(f"k_max is not provided, default value is floor({n}/10).")
+        if th < 2:
+            raise ValueError(
+                "Time horizon must be at least 2, otherwise use static spectral "
+                "clustering."
+            )
+        assert alpha.shape == (th, 2)
+        assert k_max > 0
+
         if self.verbose:
-            log(f"PisCES-fit ~ #nodes:{self.n}, " f"#time:{self.time_horizon}")
+            log(
+                "PisCES-fit ~ "
+                f"#nodes:{self.n}, "
+                f"#time:{self.time_horizon}, "
+                f"degree-corrected:{degree_correction}, "
+                f"alpha:{alpha[0,0]}, "
+                f"k_max:{k_max}, "
+                f"n_iter:{n_iter}"
+            )
+
+        k = np.zeros(th).astype(int) + k_max
+        v_col = np.zeros((th, n, k_max))
+        objective = np.zeros(n_iter)
+        self.convergence_monitor = []
+        diffU = 0
 
         if self.degree_correction:
             for t in range(self.time_horizon):
@@ -61,65 +116,24 @@ class PisCES(SpectralClustering):
             for t in range(self.time_horizon):
                 self.degree[t, :, :] = np.eye(self.n)
 
-    def predict(self, alpha=None, k_max=None, n_iter=30, monitor_convergence=False):
-        """
-        Parameters
-        ----------
-        alpha
-            smoothing tuning parameter, along time axis, default is
-            0.05J(th,2).
-        k_max
-            maximum number of communities, default is n/10.
-        n_iter
-            number of iteration of pisces, default is 30.
-        monitor_convergence
-            if True, method reports convergence based on ||U_{t} - U_{t-1}||
-            and |obj_t - obj_{t-1}> at each iteration.
-
-        Returns
-        -------
-        z_series: community prediction for each time point, with shape (th, n).
-        """
-        th = self.time_horizon
-        n = self.n
-        adj = self.adj
-        degree = self.degree
-
-        if alpha is None:
-            log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
-            alpha = 0.05 * np.ones((th, 2))
-        if k_max is None:
-            k_max = n // 10
-            log(f"k_max is not provided, default value is floor({n}/10).")
-
-        if th < 2:
-            raise ValueError(
-                "Time horizon must be at least 2, otherwise use static spectral "
-                "clustering."
-            )
-
-        assert alpha.shape == (th, 2)
-        assert k_max > 0
-
-        self.convergence_monitor = []
-
-        if self.verbose:
-            log(
-                f"PisCES-predict ~ alpha:{alpha[0,0]}, "
-                f"k_max {k_max}, n_iter:{n_iter}"
-            )
-
-        k = np.zeros(th).astype(int) + k_max
-        objective = np.zeros(n_iter)
-        v_col = np.zeros((th, n, k_max))
-
         # Initialization of k, v_col.
         for t in range(th):
             adj_t = adj[t, :, :]
             k[t] = self.choose_k(adj_t, adj_t, degree[t, :, :], k_max)
             _, v_col[t, :, : k[t]] = eigs(adj_t, k=k[t], which="LM")
+            if monitor_convergence:
+                diffU = diffU + (
+                    Similarity.hamming_distance(
+                        adj[t, :, :],
+                        v_col[t, :, : k[t]] @ v_col[t, :, : k[t]].T,
+                    )
+                )
+        if monitor_convergence:
+            self.convergence_monitor.append((-np.inf, diffU))
 
+        total_itr = 0
         for itr in range(n_iter):
+            total_itr += 0
             diffU = 0
             v_col_pv = deepcopy(v_col)
             for t in range(th):
@@ -159,10 +173,10 @@ class PisCES(SpectralClustering):
                         Similarity.hamming_distance(
                             v_col[t, :, : k[t]] @ v_col[t, :, : k[t]].T,
                             v_col_pv[t, :, : k[t]] @ v_col_pv[t, :, : k[t]].T,
-                            normalize=False,
                         )
                     )
-            self.convergence_monitor.append((objective[itr], diffU))
+            if monitor_convergence:
+                self.convergence_monitor.append((objective[itr], diffU))
 
             if self.verbose:
                 log(
@@ -171,41 +185,65 @@ class PisCES(SpectralClustering):
 
             if itr >= 1:
                 diff_obj = objective[itr] - objective[itr - 1]
-
                 if abs(diff_obj) < CONVERGENCE_CRITERIA:
                     break
 
-        if objective[itr] - objective[itr - 1] >= CONVERGENCE_CRITERIA:
+        if (
+            (total_itr > 0)
+            and (total_itr == n_iter)
+            and (objective[-1] - objective[-2] >= CONVERGENCE_CRITERIA)
+        ):
             warnings.warn("PisCES does not converge!", RuntimeWarning)
             if self.verbose:
                 log(f"PisCES does not not converge for alpha={alpha[0, 0]}.")
 
-        self.representations = v_col
+        self.embeddings = v_col
         self.model_order_k = k
+
+        return self.embeddings
+
+    def predict(self):
+        """
+        Parameters
+        ----------
+
+        Returns
+        -------
+        z_series: community prediction for each time point, with shape (th, n).
+        """
+        th = self.time_horizon
+        n = self.n
+
+        if self.verbose:
+            log("PisCES-predict ~ ")
 
         z_series = np.empty((th, n), dtype=int)
         for t in range(th):
-            kmeans = KMeans(n_clusters=k[t])
-            z_series[t, :] = kmeans.fit_predict(v_col[t, :, : k[t]])
+            kmeans = KMeans(n_clusters=self.model_order_k[t])
+            z_series[t, :] = kmeans.fit_predict(
+                self.embeddings[t, :, : self.model_order_k[t]]
+            )
 
         return z_series
 
     def fit_predict(
         self,
         adj,
-        degree_correction=True,
         alpha=None,
         k_max=None,
         n_iter=30,
+        degree_correction=True,
         monitor_convergence=False,
     ):
-        self.fit(adj, degree_correction=degree_correction)
-        return self.predict(
+        self.fit(
+            adj,
+            degree_correction=degree_correction,
             alpha=alpha,
             k_max=k_max,
             n_iter=n_iter,
             monitor_convergence=monitor_convergence,
         )
+        return self.predict()
 
     @timeit
     def cross_validation(
@@ -246,20 +284,17 @@ class PisCES(SpectralClustering):
 
         if self.degree_correction:
             raise ValueError("Adjacency matrix must be unlaplacianized.")
-
         if alpha is None:
             log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
             alpha = 0.05 * np.ones((th, 2))
         if k_max is None:
             k_max = n // 10
             log(f"k_max is not provided, default value is floor({n}/10).")
-
         if th < 2:
             raise ValueError(
                 "Time horizon must be at least 2, otherwise use static spectral "
                 "clustering."
             )
-
         assert alpha.shape == (th, 2)
         assert k_max > 0
 
@@ -343,8 +378,10 @@ class PisCES(SpectralClustering):
 
         if self.verbose:
             log(
-                f"Cross validation, alpha={alpha[0,0]} ~ "
-                f"modularity:{modu}, loglikelihood:{logllh}"
+                f"Cross validation ~ "
+                f"alpha={alpha[0,0]}, "
+                f"modularity:{modu}, "
+                f"loglikelihood:{logllh}"
             )
 
         return modu, logllh
@@ -354,17 +391,17 @@ if __name__ == "__main__":
     # One easy cv example for PisCES.
     from mudcod.dcbm import DynamicDCBM
 
-    n = 500
-    th = 8
+    n = 100
+    th = 2
     model_dcbm = DynamicDCBM(
         n=n,
-        k=10,
+        k=3,
         p_in=(0.3, 0.3),
         p_out=0.1,
         time_horizon=th,
         r_time=0.1,
     )
-    adj_series, z_series = model_dcbm.simulate_dynamic_dcbm()
+    adj_series, z_true_series = model_dcbm.simulate_dynamic_dcbm()
 
     pisces = PisCES(verbose=True)
 
@@ -372,9 +409,17 @@ if __name__ == "__main__":
     k_max = 10
     n_iter = 100
 
-    pisces.fit(adj_series[:, :, :], degree_correction=True)
-    pisces.predict(alpha=alpha, k_max=k_max, n_iter=n_iter, monitor_convergence=True)
+    pisces.fit(
+        adj_series[:, :, :],
+        degree_correction=True,
+        alpha=alpha,
+        k_max=k_max,
+        n_iter=n_iter,
+        monitor_convergence=True,
+    )
+    z_pred_series = pisces.predict()
     print(pisces.convergence_monitor)
-    ## modu, logllh = pisces.cross_validation(
-    ##     alpha=alpha, k_max=k_max, n_iter=n_iter, n_splits=4, n_jobs=1
-    ## )
+
+    from sklearn.metrics.cluster import adjusted_rand_score
+
+    print(adjusted_rand_score(z_true_series[0, :], z_pred_series[0, :]))
