@@ -7,11 +7,6 @@ from numpy.linalg import inv, eigvals
 from scipy.sparse.linalg import eigs
 from scipy.linalg import sqrtm
 
-if __name__ == "__main__":
-    import sys
-
-    sys.path.append("../")
-
 from mudcod.nw import Loss, Similarity
 from mudcod.utils.sutils import timeit, log
 from mudcod.spectral import SpectralClustering
@@ -75,11 +70,13 @@ class PisCES(SpectralClustering):
         degree = self.degree
 
         if alpha is None:
-            log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
             alpha = 0.05 * np.ones((th, 2))
+            if self.verbose:
+                log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
         if k_max is None:
             k_max = n // 10
-            log(f"k_max is not provided, default value is floor({n}/10).")
+            if self.verbose:
+                log(f"k_max is not provided, default value is floor({n}/10).")
         if th < 2:
             raise ValueError(
                 "Time horizon must be at least 2, otherwise use static spectral "
@@ -385,45 +382,3 @@ class PisCES(SpectralClustering):
             )
 
         return modu, logllh
-
-
-if __name__ == "__main__":
-    # One easy example for PisCES.
-    from mudcod.dcbm import DynamicDCBM
-
-    n = 200
-    th = 3
-    model_dcbm = DynamicDCBM(
-        n=n,
-        k=4,
-        p_in=(0.2, 0.25),
-        p_out=0.1,
-        time_horizon=th,
-        r_time=0.1,
-    )
-    adj_series, z_true_series = model_dcbm.simulate_dynamic_dcbm()
-
-    pisces = PisCES(verbose=True)
-
-    alpha = 0.1 * np.ones((adj_series.shape[0], 2))
-    k_max = 10
-    n_iter = 10
-
-    pisces.fit(
-        adj_series[:, :, :],
-        degree_correction=True,
-        alpha=alpha,
-        k_max=k_max,
-        n_iter=n_iter,
-        monitor_convergence=True,
-    )
-    z_pred_series = pisces.predict()
-    print(pisces.convergence_monitor)
-
-    from sklearn.metrics.cluster import adjusted_rand_score
-
-    for t in range(th):
-        print(
-            "At time t: ",
-            adjusted_rand_score(z_true_series[t, :], z_pred_series[t, :]),
-        )

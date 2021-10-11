@@ -7,11 +7,6 @@ from scipy.sparse.linalg import eigs
 from scipy.linalg import sqrtm
 from copy import deepcopy
 
-if __name__ == "__main__":
-    import sys
-
-    sys.path.append("../")
-
 from mudcod.nw import Loss, Similarity
 from mudcod.utils.sutils import timeit, log
 from mudcod.spectral import SpectralClustering
@@ -84,13 +79,16 @@ class MuSPCES(SpectralClustering):
 
         if alpha is None:
             alpha = 0.05 * np.ones((th, 2))
-            log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
+            if self.verbose:
+                log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
         if beta is None:
             beta = 0.01 * np.ones(ns)
-            log(f"beta is not provided, alpha set to 0.01J({ns}) by default.")
+            if self.verbose:
+                log(f"beta is not provided, alpha set to 0.01J({ns}) by default.")
         if k_max is None:
             k_max = n // 10
-            log(f"k_max is not provided, default value is floor({n}/10).")
+            if self.verbose:
+                log(f"k_max is not provided, default value is floor({n}/10).")
         if th < 2:
             raise ValueError(
                 "Time horizon must be at least 2, otherwise use static spectral "
@@ -451,43 +449,3 @@ class MuSPCES(SpectralClustering):
             )
 
         return modu, logllh
-
-
-if __name__ == "__main__":
-    # One easy example for MuSPCES.
-    from mudcod.dcbm import MuSDynamicDCBM
-
-    model_dcbm = MuSDynamicDCBM(
-        n=100,
-        k=3,
-        p_in=(0.3, 0.3),
-        p_out=0.1,
-        time_horizon=2,
-        r_time=0.2,
-        num_subjects=5,
-        r_subject=0.2,
-    )
-    adj_ms_series, z_true_ms_series = model_dcbm.simulate_ms_dynamic_dcbm(scenario=0)
-
-    muspces = MuSPCES(verbose=True)
-
-    alpha = 0.1 * np.ones((adj_ms_series.shape[1], 2))
-    beta = 0.05 * np.ones(adj_ms_series.shape[0])
-    k_max = 10
-    n_iter = 30
-
-    muspces.fit(
-        adj_ms_series[:, :, :],
-        alpha=alpha,
-        beta=beta,
-        k_max=k_max,
-        n_iter=n_iter,
-        monitor_convergence=True,
-        degree_correction=True,
-    )
-    z_pred_ms_series = muspces.predict()
-    print(muspces.convergence_monitor)
-
-    from sklearn.metrics.cluster import adjusted_rand_score
-
-    print(adjusted_rand_score(z_true_ms_series[0, 0, :], z_pred_ms_series[0, 0, :]))

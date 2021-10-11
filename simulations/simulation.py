@@ -1,4 +1,3 @@
-import sys
 import yaml
 import logging
 import argparse
@@ -7,18 +6,19 @@ import numpy as np
 from pathlib import Path
 from copy import deepcopy
 from sklearn.metrics.cluster import adjusted_rand_score
+import sys
 
-logging.captureWarnings(True)
-MAIN_DIR = Path(__file__).absolute().parent.parent
-SIMULATION_DIR = MAIN_DIR / "simulations"
-RESULT_DIR = MAIN_DIR / "results"
-sys.path.append(str(MAIN_DIR))
-
+sys.path.append("../")
 from mudcod.dcbm import MuSDynamicDCBM  # noqa: E402
 from mudcod.muspces import MuSPCES  # noqa: E402
 from mudcod.pisces import PisCES  # noqa: E402
 from mudcod.static import Static  # noqa: E402
 from mudcod.utils import sutils  # noqa: E402
+
+logging.captureWarnings(True)
+MAIN_DIR = Path(__file__).absolute().parent.parent
+SIMULATION_DIR = MAIN_DIR / "simulations"
+RESULTS_DIR = MAIN_DIR / "results"
 
 N_ITER_CV = 30
 N_ITER_CD = 40
@@ -27,6 +27,12 @@ BETA_VALUES = [0.01, 0.025, 0.05, 0.075, 0.1]
 
 parser = argparse.ArgumentParser(
     description="Multi-subject Dynamic Degree-corrected Block Model simulation."
+)
+parser.add_argument(
+    "--results-dir",
+    type=str,
+    default="",
+    help="Path to save the results of simulations.",
 )
 parser.add_argument("--verbose", default=False, type=bool)
 parser.add_argument(
@@ -115,7 +121,7 @@ class SimulationMSDDCBM:
         msddcbm_kwargs,
         class_dcbm,
         scenario_msd,
-        result_dir=None,
+        results_dir=None,
         verbose=False,
         n_jobs=1,
     ):
@@ -130,12 +136,9 @@ class SimulationMSDDCBM:
         self.class_dcbm = class_dcbm
         self.simulation_name = self._get_simulation_name()
 
-        if result_dir is not None:
-            self.result_dir = Path(result_dir)
-        else:
-            self.result_dir = Path(RESULT_DIR)
+        self.results_dir = Path(results_dir)
         self.simulation_result_path = (
-            self.result_dir / "simulation_results" / self.simulation_name
+            self.results_dir / "simulation_results" / self.simulation_name
         )
         sutils.ensure_file_dir(self.simulation_result_path)
 
@@ -173,7 +176,7 @@ class SimulationMSDDCBM:
                         cfg["alpha_muspces"] = alpha
                         cfg["beta_muspces"] = beta
         else:
-            simulation_result_dir = RESULT_DIR / "simulation_results"
+            simulation_result_dir = self.results_dir / "simulation_results"
             cv_result_dir = simulation_result_dir / simulation_name / "cross_validation"
 
             if not cv_result_dir.exists():
@@ -429,6 +432,7 @@ class SimulationMSDDCBM:
 
 
 if __name__ == "__main__":
+    results_dir = args.results_dir
     task = args.task
     class_dcbm = args.class_dcbm
     time_horizon = args.time_horizon
@@ -439,6 +443,10 @@ if __name__ == "__main__":
     n_jobs = args.n_jobs
     verbose = args.verbose
 
+    if results_dir == "":
+        results_dir = Path(RESULTS_DIR)
+
+    sutils.log(f"Results will be saved to:{results_dir}")
     sutils.log(
         f"DCBM-class-name:{class_dcbm}, task:{task}, "
         f"time-horizon:{time_horizon}, r-time:{r_time}, "
@@ -457,7 +465,7 @@ if __name__ == "__main__":
         msddcbm_kwargs,
         class_dcbm,
         scenario_msd,
-        result_dir=None,
+        results_dir=results_dir,
         n_jobs=n_jobs,
         verbose=verbose,
     )

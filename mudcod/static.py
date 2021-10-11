@@ -7,11 +7,6 @@ from scipy.sparse.linalg import eigs
 from scipy.linalg import sqrtm
 from sklearn.cluster import KMeans
 
-if __name__ == "__main__":
-    import sys
-
-    sys.path.append("../")
-
 from mudcod.spectral import SpectralClustering
 from mudcod.utils.sutils import log
 
@@ -51,7 +46,8 @@ class Static(SpectralClustering):
 
         if k_max is None:
             k_max = self.n // 10
-            log(f"k_max is not provided, default value is floor({self.n}/10).")
+            if self.verbose:
+                log(f"k_max is not provided, default value is floor({self.n}/10).")
         if self.verbose:
             log(
                 f"Static-fit ~ "
@@ -98,27 +94,3 @@ class Static(SpectralClustering):
     def fit_predict(self, adj, k_max=None, degree_correction=True):
         self.fit(adj, k_max=k_max, degree_correction=degree_correction)
         return self.predict()
-
-
-if __name__ == "__main__":
-    # One easy example for PisCES.
-    from mudcod.dcbm import DynamicDCBM
-
-    n = 100
-    th = 1
-    model_dcbm = DynamicDCBM(
-        n=n,
-        k=2,
-        p_in=(0.2, 0.25),
-        p_out=0.1,
-        time_horizon=th,
-        r_time=0.1,
-    )
-    adj_series, z_true_series = model_dcbm.simulate_dynamic_dcbm()
-
-    static = Static(verbose=True)
-    z = static.fit_predict(adj_series[0])
-
-    from sklearn.metrics.cluster import adjusted_rand_score
-
-    print(adjusted_rand_score(z, z_true_series[0]))

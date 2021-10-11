@@ -1,20 +1,17 @@
-import sys
 import numpy as np
 
 from pathlib import Path
-
-MAIN_DIR = Path(__file__).absolute().parent.parent
-SIMULATION_DIR = MAIN_DIR / "simulations"
-RESULT_DIR = MAIN_DIR / "results"
-NW_COMPARE_DIR = RESULT_DIR / "network_comparison"
-sys.path.append(str(MAIN_DIR))
-
 
 import mudcod.dcbm as dcbm  # noqa: E402
 
 from mudcod.utils import sutils  # noqa: E402
 from mudcod.nw import Similarity  # noqa: E402
 
+
+MAIN_DIR = Path(__file__).absolute().parent.parent
+SIMULATION_DIR = MAIN_DIR / "simulations"
+RESULT_DIR = MAIN_DIR / "results"
+NW_COMPARE_DIR = RESULT_DIR / "network_comparison"
 sutils.safe_create_dir(NW_COMPARE_DIR)
 
 
