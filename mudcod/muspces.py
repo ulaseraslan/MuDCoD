@@ -454,7 +454,7 @@ class MuSPCES(SpectralClustering):
 
 
 if __name__ == "__main__":
-    # One easy cv example for MuSPCES.
+    # One easy example for MuSPCES.
     from mudcod.dcbm import MuSDynamicDCBM
 
     model_dcbm = MuSDynamicDCBM(

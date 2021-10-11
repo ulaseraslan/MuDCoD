@@ -388,15 +388,15 @@ class PisCES(SpectralClustering):
 
 
 if __name__ == "__main__":
-    # One easy cv example for PisCES.
+    # One easy example for PisCES.
     from mudcod.dcbm import DynamicDCBM
 
-    n = 100
-    th = 2
+    n = 200
+    th = 3
     model_dcbm = DynamicDCBM(
         n=n,
-        k=3,
-        p_in=(0.3, 0.3),
+        k=4,
+        p_in=(0.2, 0.25),
         p_out=0.1,
         time_horizon=th,
         r_time=0.1,
@@ -407,7 +407,7 @@ if __name__ == "__main__":
 
     alpha = 0.1 * np.ones((adj_series.shape[0], 2))
     k_max = 10
-    n_iter = 100
+    n_iter = 10
 
     pisces.fit(
         adj_series[:, :, :],
@@ -422,4 +422,8 @@ if __name__ == "__main__":
 
     from sklearn.metrics.cluster import adjusted_rand_score
 
-    print(adjusted_rand_score(z_true_series[0, :], z_pred_series[0, :]))
+    for t in range(th):
+        print(
+            "At time t: ",
+            adjusted_rand_score(z_true_series[t, :], z_pred_series[t, :]),
+        )

@@ -101,7 +101,7 @@ class Static(SpectralClustering):
 
 
 if __name__ == "__main__":
-    # One easy cv example for PisCES.
+    # One easy example for PisCES.
     from mudcod.dcbm import DynamicDCBM
 
     n = 100

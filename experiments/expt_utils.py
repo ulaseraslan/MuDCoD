@@ -25,7 +25,7 @@ def get_community_detection_methods(verbose):
 
 
 def get_msdyn_nw(data_path):
-    MSDYN_NW_PATH = data_path / "multisubject_dynamic_nw_series.npy"
+    MSDYN_NW_PATH = data_path / "msdyn_nw.npy"
     msdyn_nw = np.load(MSDYN_NW_PATH)
     return msdyn_nw
 
@@ -46,6 +46,10 @@ def get_result_path(cell_type, percentile):
     RESULT_PATH = RESULT_DIR / f"{cell_type}/" / f"p{str(percentile)}" / ""
     sutils.safe_create_dir(RESULT_PATH)
     return RESULT_PATH
+
+
+def ensure_file_dir(path):
+    sutils.ensure_file_dir(path)
 
 
 def get_data_path(cell_type, percentile):
