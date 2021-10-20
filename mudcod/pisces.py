@@ -28,6 +28,7 @@ class PisCES(SpectralClustering):
         adj,
         alpha=None,
         k_max=None,
+        k_opt="empirical",
         n_iter=30,
         degree_correction=True,
         monitor_convergence=False,
@@ -74,9 +75,9 @@ class PisCES(SpectralClustering):
             if self.verbose:
                 log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
         if k_max is None:
-            k_max = n // 10
+            k_max = np.ceil(self.n / 10).astype(int)
             if self.verbose:
-                log(f"k_max is not provided, default value is floor({n}/10).")
+                log(f"k_max is not provided, default value is ceil({n}/10).")
         if th < 2:
             raise ValueError(
                 "Time horizon must be at least 2, otherwise use static spectral "
@@ -116,7 +117,7 @@ class PisCES(SpectralClustering):
         # Initialization of k, v_col.
         for t in range(th):
             adj_t = adj[t, :, :]
-            k[t] = self.choose_k(adj_t, adj_t, degree[t, :, :], k_max)
+            k[t] = self.choose_k(adj_t, adj_t, degree[t, :, :], k_max, opt=k_opt)
             _, v_col[t, :, : k[t]] = eigs(adj_t, k=k[t], which="LM")
             if monitor_convergence:
                 diffU = diffU + (
@@ -138,14 +139,14 @@ class PisCES(SpectralClustering):
                     adj_t = adj[t, :, :]
                     v_col_ktn = v_col_pv[t + 1, :, : k[t + 1]]
                     s_t = adj_t + alpha[t, 1] * v_col_ktn @ v_col_ktn.T
-                    k[t] = self.choose_k(s_t, adj_t, degree[t, :, :], k_max)
+                    k[t] = self.choose_k(s_t, adj_t, degree[t, :, :], k_max, opt=k_opt)
                     _, v_col[t, :, : k[t]] = eigs(adj_t, k=k[t], which="LM")
 
                 elif t == th - 1:
                     adj_t = adj[t, :, :]
                     v_col_ktp = v_col_pv[t - 1, :, : k[t - 1]]
                     s_t = adj_t + alpha[t, 0] * v_col_ktp @ v_col_ktp.T
-                    k[t] = self.choose_k(s_t, adj_t, degree[t, :, :], k_max)
+                    k[t] = self.choose_k(s_t, adj_t, degree[t, :, :], k_max, opt=k_opt)
                     _, v_col[t, :, : k[t]] = eigs(s_t, k=k[t], which="LM")
                     eig_val = eigvals(v_col[t, :, : k[t]].T @ v_col_pv[t, :, : k[t]])
                     objective[itr] = objective[itr] + (np.sum(np.abs(eig_val), axis=0))
@@ -159,7 +160,7 @@ class PisCES(SpectralClustering):
                         + (alpha[t, 0] * v_col_ktp @ v_col_ktp.T)
                         + (alpha[t, 1] * v_col_ktn @ v_col_ktn.T)
                     )
-                    k[t] = self.choose_k(s_t, adj_t, degree[t, :, :], k_max)
+                    k[t] = self.choose_k(s_t, adj_t, degree[t, :, :], k_max, opt=k_opt)
                     _, v_col[t, :, : k[t]] = eigs(s_t, k=k[t], which="LM")
 
                 eig_val = eigvals(v_col[t, :, : k[t]].T @ v_col_pv[t, :, : k[t]])
@@ -228,6 +229,7 @@ class PisCES(SpectralClustering):
         adj,
         alpha=None,
         k_max=None,
+        k_opt="empirical",
         n_iter=30,
         degree_correction=True,
         monitor_convergence=False,
@@ -237,6 +239,7 @@ class PisCES(SpectralClustering):
             degree_correction=degree_correction,
             alpha=alpha,
             k_max=k_max,
+            k_opt=k_opt,
             n_iter=n_iter,
             monitor_convergence=monitor_convergence,
         )
@@ -282,11 +285,13 @@ class PisCES(SpectralClustering):
         if self.degree_correction:
             raise ValueError("Adjacency matrix must be unlaplacianized.")
         if alpha is None:
-            log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
             alpha = 0.05 * np.ones((th, 2))
+            if self.verbose:
+                log(f"alpha is not provided, alpha set to 0.05J({th},2) by default.")
         if k_max is None:
-            k_max = n // 10
-            log(f"k_max is not provided, default value is floor({n}/10).")
+            k_max = np.ceil(self.n / 10).astype(int)
+            if self.verbose:
+                log(f"k_max is not provided, default value is ceil({n}/10).")
         if th < 2:
             raise ValueError(
                 "Time horizon must be at least 2, otherwise use static spectral "

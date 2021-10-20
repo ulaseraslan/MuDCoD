@@ -8,7 +8,8 @@ from copy import deepcopy
 from sklearn.metrics.cluster import adjusted_rand_score
 import sys
 
-sys.path.append("../")
+sys.path.append("..")
+
 from mudcod.dcbm import MuSDynamicDCBM  # noqa: E402
 from mudcod.muspces import MuSPCES  # noqa: E402
 from mudcod.pisces import PisCES  # noqa: E402
@@ -252,7 +253,9 @@ class SimulationMSDDCBM:
         th = self.model.time_horizon
 
         muspces = MuSPCES(verbose=self.verbose)
-        muspces.fit(deepcopy(adj_ms_series), n_iter=0, degree_correction=False)
+        muspces.fit(
+            deepcopy(adj_ms_series), n_iter=0, k_opt="null", degree_correction=False
+        )
 
         modu_muspces, logllh_muspces = muspces.cross_validation(
             alpha=alpha * np.ones((th, 2)),
@@ -290,7 +293,12 @@ class SimulationMSDDCBM:
         modu_pisces, logllh_pisces = 0, 0
 
         for sbj in range(ns):
-            pisces.fit(adj_ms_series[sbj, :, :, :], n_iter=0, degree_correction=False)
+            pisces.fit(
+                adj_ms_series[sbj, :, :, :],
+                n_iter=0,
+                k_opt="null",
+                degree_correction=False,
+            )
             modu_sbj_pisces, logllh_sbj_pisces = pisces.cross_validation(
                 alpha=alpha * np.ones((th, 2)), n_jobs=self.n_jobs, n_iter=N_ITER_CV
             )
@@ -347,6 +355,7 @@ class SimulationMSDDCBM:
             alpha=alpha_muspces,
             beta=beta_muspces,
             k_max=self.model.n // 10,
+            k_opt="null",
             n_iter=N_ITER_CD,
         )
 
@@ -359,6 +368,7 @@ class SimulationMSDDCBM:
                         deepcopy(adj_ms_series[sbj, :, :, :]),
                         alpha=alpha_pisces,
                         k_max=self.model.n // 10,
+                        k_opt="null",
                         n_iter=N_ITER_CD,
                     )
                     for sbj in range(ns)
@@ -368,7 +378,9 @@ class SimulationMSDDCBM:
             with Parallel(n_jobs=self.n_jobs) as parallel:
                 temp_static = parallel(
                     delayed(static.fit_predict)(
-                        deepcopy(adj_ms_series[sbj, t, :, :]), k_max=self.model.n // 10
+                        deepcopy(adj_ms_series[sbj, t, :, :]),
+                        k_max=self.model.n // 10,
+                        k_opt="null",
                     )
                     for sbj in range(ns)
                     for t in range(th)
@@ -381,13 +393,16 @@ class SimulationMSDDCBM:
                     adj_ms_series[sbj, :, :, :],
                     alpha=alpha_pisces,
                     k_max=self.model.n // 10,
+                    k_opt="null",
                     n_iter=N_ITER_CD,
                 )
 
             for sbj in range(ns):
                 for t in range(th):
                     z_static[sbj, t, :] = static.fit_predict(
-                        adj_ms_series[sbj, t, :, :], k_max=self.model.n // 10
+                        adj_ms_series[sbj, t, :, :],
+                        k_max=self.model.n // 10,
+                        k_opt="null",
                     )
 
         for t in range(th):

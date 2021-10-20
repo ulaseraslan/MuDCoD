@@ -29,6 +29,7 @@ class MuSPCES(SpectralClustering):
         alpha=None,
         beta=None,
         k_max=None,
+        k_opt="empirical",
         n_iter=30,
         degree_correction=True,
         monitor_convergence=False,
@@ -86,9 +87,9 @@ class MuSPCES(SpectralClustering):
             if self.verbose:
                 log(f"beta is not provided, alpha set to 0.01J({ns}) by default.")
         if k_max is None:
-            k_max = n // 10
+            k_max = np.ceil(self.n / 10).astype(int)
             if self.verbose:
-                log(f"k_max is not provided, default value is floor({n}/10).")
+                log(f"k_max is not provided, default value is ceil({n}/10).")
         if th < 2:
             raise ValueError(
                 "Time horizon must be at least 2, otherwise use static spectral "
@@ -133,7 +134,9 @@ class MuSPCES(SpectralClustering):
         for t in range(th):
             for sbj in range(ns):
                 adj_t = adj[sbj, t, :, :]
-                k[sbj, t] = self.choose_k(adj_t, adj_t, degree[sbj, t, :, :], k_max)
+                k[sbj, t] = self.choose_k(
+                    adj_t, adj_t, degree[sbj, t, :, :], k_max, opt=k_opt
+                )
                 _, v_col[sbj, t, :, : k[sbj, t]] = eigs(adj_t, k=k[sbj, t], which="LM")
                 if monitor_convergence:
                     diffU = diffU + (
@@ -164,7 +167,7 @@ class MuSPCES(SpectralClustering):
                             + beta[sbj] * mu_u_t
                         )
                         k[sbj, t] = self.choose_k(
-                            s_t, adj_t, degree[sbj, t, :, :], k_max
+                            s_t, adj_t, degree[sbj, t, :, :], k_max, opt=k_opt
                         )
                         _, v_col[sbj, t, :, : k[sbj, t]] = eigs(
                             adj_t, k=k[sbj, t], which="LM"
@@ -179,7 +182,7 @@ class MuSPCES(SpectralClustering):
                             + beta[sbj] * mu_u_t
                         )
                         k[sbj, t] = self.choose_k(
-                            s_t, adj_t, degree[sbj, t, :, :], k_max
+                            s_t, adj_t, degree[sbj, t, :, :], k_max, opt=k_opt
                         )
                         _, v_col[sbj, t, :, : k[sbj, t]] = eigs(
                             s_t, k=k[sbj, t], which="LM"
@@ -196,7 +199,7 @@ class MuSPCES(SpectralClustering):
                             + beta[sbj] * mu_u_t
                         )
                         k[sbj, t] = self.choose_k(
-                            s_t, adj_t, degree[sbj, t, :, :], k_max
+                            s_t, adj_t, degree[sbj, t, :, :], k_max, opt=k_opt
                         )
                         _, v_col[sbj, t, :, : k[sbj, t]] = eigs(
                             s_t, k=k[sbj, t], which="LM"
@@ -279,6 +282,7 @@ class MuSPCES(SpectralClustering):
         alpha=None,
         beta=None,
         k_max=None,
+        k_opt="empirical",
         n_iter=30,
         monitor_convergence=False,
     ):
@@ -287,6 +291,7 @@ class MuSPCES(SpectralClustering):
             alpha=alpha,
             beta=beta,
             k_max=k_max,
+            k_opt=k_opt,
             n_iter=n_iter,
             degree_correction=degree_correction,
             monitor_convergence=monitor_convergence,
@@ -339,13 +344,16 @@ class MuSPCES(SpectralClustering):
             raise ValueError("Adjacency matrix must be unlaplacianized.")
         if alpha is None:
             alpha = 0.05 * np.ones((th, 2))
-            log(f"alpha is not provided, default value is 0.05J({th},2).")
+            if self.verbose:
+                log(f"alpha is not provided, default value is 0.05J({th},2).")
         if beta is None:
             beta = 0.01 * np.ones(ns)
-            log(f"beta is not provided, default value is 0.01J({ns}).")
+            if self.verbose:
+                log(f"beta is not provided, default value is 0.01J({ns}).")
         if k_max is None:
-            k_max = n // 10
-            log(f"k_max is not provided, default value is floor({n}/10).")
+            k_max = np.ceil(self.n / 10).astype(int)
+            if self.verbose:
+                log(f"k_max is not provided, default value is ceil({n}/10).")
         if th < 2:
             raise ValueError(
                 "Time horizon must be at least 2, otherwise use static spectral "

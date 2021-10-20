@@ -20,7 +20,7 @@ class Static(SpectralClustering):
     def __init__(self, verbose=False):
         super().__init__("static", verbose=verbose)
 
-    def fit(self, adj, k_max=None, degree_correction=True):
+    def fit(self, adj, k_max=None, k_opt="empirical", degree_correction=True):
         """
         Parameters
         ----------
@@ -45,9 +45,9 @@ class Static(SpectralClustering):
         self.degree_correction = degree_correction
 
         if k_max is None:
-            k_max = self.n // 10
+            k_max = np.ceil(self.n / 10).astype(int)
             if self.verbose:
-                log(f"k_max is not provided, default value is floor({self.n}/10).")
+                log(f"k_max is not provided, default value is ceil({self.n}/10).")
         if self.verbose:
             log(
                 f"Static-fit ~ "
@@ -66,7 +66,7 @@ class Static(SpectralClustering):
 
         # initialization of k, v_col.
         v_col = np.zeros((self.n, k_max))
-        k = self.choose_k(self.adj, self.adj, self.degree, k_max)
+        k = self.choose_k(self.adj, self.adj, self.degree, k_max, opt=k_opt)
         _, v_col[:, :k] = eigs(self.adj, k=k, which="LM")
 
         self.embeddings = v_col
@@ -91,6 +91,6 @@ class Static(SpectralClustering):
 
         return z
 
-    def fit_predict(self, adj, k_max=None, degree_correction=True):
-        self.fit(adj, k_max=k_max, degree_correction=degree_correction)
+    def fit_predict(self, adj, k_max=None, k_opt="empirical", degree_correction=True):
+        self.fit(adj, k_max=k_max, k_opt=k_opt, degree_correction=degree_correction)
         return self.predict()

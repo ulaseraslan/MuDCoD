@@ -62,7 +62,7 @@ class SpectralClustering:
         return m
 
     @staticmethod
-    def choose_k(adj_smoothed, adj, degree, k_max):
+    def choose_k(adj_smoothed, adj, degree, k_max, opt="empirical"):
         """
         Method of choosing number of modules k
 
@@ -76,6 +76,10 @@ class SpectralClustering:
             then maximum number of modules
         adj
             original adjacency matrix with dimension (n,n)
+        opt
+            if 'null', then simulate Laplacianized Erdos–Renyi adjacency matrices
+            if emprical, use second largest eigengap as the threshold
+
 
         Returns
         -------
@@ -83,6 +87,7 @@ class SpectralClustering:
             number of modules
         """
         n = adj_smoothed.shape[0]
+        opt_list = ["null", "empirical"]
 
         if np.array_equal(degree, np.eye(n)):
             d_a = np.diag(np.sum(adj_smoothed, axis=0) + _eps)
@@ -95,12 +100,19 @@ class SpectralClustering:
         gaprw = erw[1 : k_max + 1] - erw[:k_max]
         sq_d = sqrtm(degree)
         pin = np.sum(sq_d @ adj @ sq_d) / comb(n, 2) / 2
-        threshold = 3.5 / pin ** (0.58) / n ** (1.15)
 
-        idx = np.nonzero(gaprw > threshold)[0]
-        if idx.shape[0] == 0:
-            k = 1
+        if opt == opt_list[0]:
+            threshold = 3.5 / pin ** (0.58) / n ** (1.15)
+            idx = np.nonzero(gaprw > threshold)[0]
+            if idx.shape[0] == 0:
+                k = 1
+            else:
+                k = np.max(idx) + 1
+        elif opt == opt_list[1]:
+            k = np.argmax(gaprw[1:]) + 2
         else:
-            k = max(idx) + 1
+            raise ValueError(
+                f"Unkown option {opt} is given for choosing K. Use one of {opt_list}."
+            )
 
         return int(k)
